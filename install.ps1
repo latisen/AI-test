@@ -64,8 +64,18 @@ function Invoke-WingetInstall {
 		throw "winget install for '$Name' ($Id) timed out after $TimeoutSeconds seconds. Re-run that package manually to continue."
 	}
 
-	if ($process.ExitCode -ne 0) {
-		throw "winget install failed for '$Name' ($Id) with exit code $($process.ExitCode)."
+	$process.WaitForExit()
+	$exitCode = if ($null -eq $process.ExitCode) { -1 } else { [int]$process.ExitCode }
+
+	if ($exitCode -ne 0) {
+		# winget can return non-zero for "already installed / no upgrade" depending on client version.
+		$existing = winget list --id $Id --exact --source winget 2>$null
+		if ($LASTEXITCODE -eq 0 -and $existing -match [regex]::Escape($Id)) {
+			Write-Host ("[{0}] {1} already installed and up to date (continuing)." -f (Get-Date -Format "HH:mm:ss"), $Name) -ForegroundColor DarkGray
+		}
+		else {
+			throw "winget install failed for '$Name' ($Id) with exit code $exitCode."
+		}
 	}
 
 	Write-Host ("[{0}] Finished install: {1} ({2}) in {3}s" -f (Get-Date -Format "HH:mm:ss"), $Name, $Id, [int]$stopwatch.Elapsed.TotalSeconds) -ForegroundColor Green
