@@ -1,6 +1,7 @@
 param(
 	[string]$InstallRoot = "C:\AICompanion",
-	[switch]$SkipRebootReminder
+	[switch]$SkipRebootReminder,
+	[switch]$SkipNvidiaCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -120,14 +121,27 @@ function Assert-Nvidia {
 	Write-Step "Validating NVIDIA GPU and CUDA"
 
 	Assert-Command -CommandName "nvidia-smi"
-	$gpuOutput = nvidia-smi
-	if ($gpuOutput -notmatch "NVIDIA") {
-		throw "NVIDIA GPU not detected by nvidia-smi."
+	$gpuOutput = (& nvidia-smi 2>&1 | Out-String).Trim()
+	$exitCode = $LASTEXITCODE
+
+	if ($exitCode -ne 0) {
+		throw "nvidia-smi exited with code $exitCode. Output:`n$gpuOutput"
 	}
+
+	# Use query mode to avoid brittle text parsing across locales / output formats.
+	$gpuNamesRaw = (& nvidia-smi --query-gpu=name --format=csv,noheader 2>&1 | Out-String).Trim()
+	$gpuQueryExitCode = $LASTEXITCODE
+	$gpuNames = @($gpuNamesRaw -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+	if ($gpuQueryExitCode -ne 0 -or $gpuNames.Count -eq 0) {
+		throw "NVIDIA GPU not detected by nvidia-smi query. Output:`n$gpuNamesRaw"
+	}
+
 	if ($gpuOutput -notmatch "CUDA Version") {
-		throw "CUDA runtime not reported. Update NVIDIA drivers before continuing."
+		throw "CUDA runtime not reported by nvidia-smi. Output:`n$gpuOutput"
 	}
-	Write-Host "NVIDIA GPU and CUDA runtime detected."
+
+	Write-Host ("NVIDIA GPU and CUDA runtime detected: {0}" -f ($gpuNames -join ", "))
 }
 
 function Configure-NvidiaContainerToolkitInWSL {
@@ -296,7 +310,13 @@ Write-Host "Ubuntu will be installed via WSL setup." -ForegroundColor DarkGray
 
 Enable-WSLIfNeeded
 Ensure-UbuntuWSL
-Assert-Nvidia
+if ($SkipNvidiaCheck) {
+	Write-Warning "Skipping NVIDIA/CUDA validation because -SkipNvidiaCheck was provided."
+	Write-Warning "GPU containers or CUDA acceleration may fail until NVIDIA driver/WSL GPU access is fixed."
+}
+else {
+	Assert-Nvidia
+}
 Configure-NvidiaContainerToolkitInWSL
 Ensure-InstallFolders -Root $InstallRoot
 Sync-ProjectFiles -Root $InstallRoot
