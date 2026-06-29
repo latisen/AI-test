@@ -202,7 +202,21 @@ function Sync-ProjectFiles {
 	param([string]$Root)
 
 	Write-Step "Syncing project files to install root"
-	$source = Split-Path -Parent $MyInvocation.MyCommand.Path
+	if ($PSScriptRoot) {
+		$source = $PSScriptRoot
+	}
+	elseif ($PSCommandPath) {
+		$source = Split-Path -Parent $PSCommandPath
+	}
+	else {
+		$source = (Get-Location).Path
+		Write-Warning "Could not determine script root from PowerShell metadata. Using current directory: $source"
+	}
+
+	if (-not (Test-Path $source)) {
+		throw "Source path for sync does not exist: $source"
+	}
+
 	robocopy $source $Root /E /NFL /NDL /NJH /NJS /NP /XD ".git" | Out-Null
 	if ($LASTEXITCODE -gt 7) {
 		throw "File sync failed with robocopy exit code $LASTEXITCODE"
