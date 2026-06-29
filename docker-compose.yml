@@ -55,6 +55,15 @@ services:
       - "${COMFYUI_PORT:-8188}:8188"
     environment:
       - CLI_ARGS=--listen 0.0.0.0 --port 8188
+    command: >
+      bash -lc "
+      python -m pip install --no-cache-dir blake3 || true;
+      MAIN_PY='';
+      if [ -f /root/ComfyUI/main.py ]; then MAIN_PY='/root/ComfyUI/main.py'; fi;
+      if [ -z \"$MAIN_PY\" ] && [ -f /workspace/ComfyUI/main.py ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi;
+      if [ -n \"$MAIN_PY\" ]; then sed -i '/import comfy_aimdo.control/d' \"$MAIN_PY\"; fi;
+      exec python \"${MAIN_PY:-/root/ComfyUI/main.py}\" --listen 0.0.0.0 --port 8188
+      "
     volumes:
       - ./models:/workspace/ComfyUI/models
       - ./loras:/workspace/ComfyUI/models/loras
