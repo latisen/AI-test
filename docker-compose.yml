@@ -62,9 +62,10 @@ services:
       if [ -f /root/ComfyUI/main.py ]; then MAIN_PY='/root/ComfyUI/main.py'; fi;
       if [ -z \"$$MAIN_PY\" ] && [ -f /workspace/ComfyUI/main.py ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi;
       if [ -z \"$$MAIN_PY\" ]; then MAIN_PY='/root/ComfyUI/main.py'; fi;
-      mkdir -p /opt/comfy_patches/comfy_aimdo;
-      printf '%s\n' '# auto-generated compatibility stub' > /opt/comfy_patches/comfy_aimdo/__init__.py;
-        cat > /opt/comfy_patches/comfy_aimdo/control.py <<'PY'
+      for BASE in /root/ComfyUI /workspace/ComfyUI /opt/comfy_patches; do
+        mkdir -p \"$BASE/comfy_aimdo\";
+        printf '%s\n' '# auto-generated compatibility stub' > \"$BASE/comfy_aimdo/__init__.py\";
+        cat > \"$BASE/comfy_aimdo/control.py\" <<'PY'
     # auto-generated compatibility stub
     def _noop(*args, **kwargs):
       return None
@@ -75,6 +76,7 @@ services:
     def __getattr__(name):
       return _noop
     PY
+      done
       export PYTHONPATH=/opt/comfy_patches:$$PYTHONPATH;
       exec python3 \"$$MAIN_PY\" --listen 0.0.0.0 --port 8188
       "
