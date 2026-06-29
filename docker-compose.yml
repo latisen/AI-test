@@ -60,12 +60,13 @@ services:
       python3 -m pip install --no-cache-dir blake3 || true;
       MAIN_PY='';
       if [ -f /root/ComfyUI/main.py ]; then MAIN_PY='/root/ComfyUI/main.py'; fi;
-      if [ -z \"$MAIN_PY\" ] && [ -f /workspace/ComfyUI/main.py ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi;
+      if [ -z \"$$MAIN_PY\" ] && [ -f /workspace/ComfyUI/main.py ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi;
+      if [ -z \"$$MAIN_PY\" ]; then MAIN_PY='/root/ComfyUI/main.py'; fi;
       mkdir -p /opt/comfy_patches/comfy_aimdo;
       printf '%s\n' '# auto-generated compatibility stub' > /opt/comfy_patches/comfy_aimdo/__init__.py;
       printf '%s\n' '# auto-generated compatibility stub' > /opt/comfy_patches/comfy_aimdo/control.py;
-      export PYTHONPATH=/opt/comfy_patches:${PYTHONPATH};
-      exec python3 \"${MAIN_PY:-/root/ComfyUI/main.py}\" --listen 0.0.0.0 --port 8188
+      export PYTHONPATH=/opt/comfy_patches:$$PYTHONPATH;
+      exec python3 \"$$MAIN_PY\" --listen 0.0.0.0 --port 8188
       "
     volumes:
       - ./models:/workspace/ComfyUI/models
