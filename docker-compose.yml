@@ -61,7 +61,7 @@ services:
       MAIN_PY='';
       if [ -f /root/ComfyUI/main.py ]; then MAIN_PY='/root/ComfyUI/main.py'; fi;
       if [ -z \"$MAIN_PY\" ] && [ -f /workspace/ComfyUI/main.py ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi;
-      if [ -n \"$MAIN_PY\" ]; then sed -i '/import comfy_aimdo.control/d' \"$MAIN_PY\"; fi;
+      if [ -n \"$MAIN_PY\" ]; then python3 -c \"from pathlib import Path; p=Path('''$MAIN_PY'''); t=p.read_text(encoding='utf-8'); lines=t.splitlines(True); filtered=[ln for ln in lines if 'comfy_aimdo' not in ln]; p.write_text(''.join(filtered), encoding='utf-8')\"; fi;
       exec python3 \"${MAIN_PY:-/root/ComfyUI/main.py}\" --listen 0.0.0.0 --port 8188
       "
     volumes:
