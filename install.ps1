@@ -25,20 +25,42 @@ function Assert-Command {
 	}
 }
 
+function Invoke-WingetInstall {
+	param(
+		[string]$Id,
+		[int]$TimeoutSeconds = 1200
+	)
+
+	$args = @(
+		"install",
+		"--id", $Id,
+		"--exact",
+		"--source", "winget",
+		"--accept-package-agreements",
+		"--accept-source-agreements",
+		"--disable-interactivity",
+		"--silent"
+	)
+
+	$process = Start-Process -FilePath "winget" -ArgumentList $args -NoNewWindow -PassThru
+	if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+		$process.Kill()
+		throw "winget install for '$Id' timed out after $TimeoutSeconds seconds. Re-run that package manually to continue."
+	}
+
+	if ($process.ExitCode -ne 0) {
+		throw "winget install failed for '$Id' with exit code $($process.ExitCode)."
+	}
+}
+
 function Install-WithWinget {
 	param(
 		[string]$Id,
 		[string]$Name
 	)
 
-	$existing = winget list --id $Id --exact 2>$null
-	if ($LASTEXITCODE -eq 0 -and $existing -match $Id) {
-		Write-Host "$Name already installed." -ForegroundColor DarkGray
-		return
-	}
-
 	Write-Host "Installing $Name..."
-	winget install --id $Id --exact --accept-package-agreements --accept-source-agreements --silent
+	Invoke-WingetInstall -Id $Id
 }
 
 function Enable-WSLIfNeeded {
@@ -232,7 +254,7 @@ Install-WithWinget -Id "Git.Git" -Name "Git"
 Install-WithWinget -Id "Python.Python.3.12" -Name "Python 3.12"
 Install-WithWinget -Id "Docker.DockerDesktop" -Name "Docker Desktop"
 Install-WithWinget -Id "Ollama.Ollama" -Name "Ollama"
-Install-WithWinget -Id "Canonical.Ubuntu.2404" -Name "Ubuntu 24.04"
+Write-Host "Ubuntu will be installed via WSL setup." -ForegroundColor DarkGray
 
 Enable-WSLIfNeeded
 Ensure-UbuntuWSL
