@@ -1,0 +1,104 @@
+version: "3.9"
+
+name: aicompanion
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: aicompanion-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./models/ollama:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=5m
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: aicompanion-open-webui
+    restart: unless-stopped
+    depends_on:
+      - ollama
+      - fastapi-bridge
+    ports:
+      - "${OPENWEBUI_PORT:-3000}:8080"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=${OPENWEBUI_SECRET_KEY}
+    volumes:
+      - ./docker/openwebui:/app/backend/data
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: aicompanion-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "6334:6334"
+    volumes:
+      - ./qdrant:/qdrant/storage
+      - ./docker/qdrant/config.yaml:/qdrant/config/production.yaml:ro
+
+  comfyui:
+    image: yanwk/comfyui-boot:cu124-slim
+    container_name: aicompanion-comfyui
+    restart: unless-stopped
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    environment:
+      - CLI_ARGS=--listen 0.0.0.0 --port 8188
+    volumes:
+      - ./models:/workspace/ComfyUI/models
+      - ./loras:/workspace/ComfyUI/models/loras
+      - ./workflows:/workspace/ComfyUI/user/default/workflows
+      - ./images:/workspace/ComfyUI/output
+      - ./reference_photos:/workspace/ComfyUI/input
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  fastapi-bridge:
+    build:
+      context: ./docker/fastapi
+      dockerfile: Dockerfile
+    container_name: aicompanion-fastapi-bridge
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OLLAMA_URL=http://ollama:11434
+      - QDRANT_URL=http://qdrant:6333
+      - COMFYUI_URL=http://comfyui:8188
+    depends_on:
+      - ollama
+      - qdrant
+      - comfyui
+    ports:
+      - "${FASTAPI_PORT:-8080}:8080"
+    volumes:
+      - ./characters:/data/characters
+      - ./memories:/data/memories
+      - ./images:/data/images
+      - ./models:/data/models
+      - ./loras:/data/loras
+      - ./workflows:/data/workflows
+      - ./reference_photos:/data/reference_photos
+      - ./logs:/data/logs
+      - ./backups:/data/backups
+
+networks:
+  default:
+    name: aicompanion-network
