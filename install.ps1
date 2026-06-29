@@ -26,6 +26,35 @@ function Assert-Command {
 	}
 }
 
+function Ensure-CommandAvailable {
+	param(
+		[string]$CommandName,
+		[string[]]$CandidateExePaths
+	)
+
+	if (Get-Command $CommandName -ErrorAction SilentlyContinue) {
+		return
+	}
+
+	foreach ($candidate in $CandidateExePaths) {
+		if (Test-Path $candidate) {
+			$candidateDir = Split-Path -Parent $candidate
+			$pathEntries = @($env:Path -split ";" | Where-Object { $_ })
+			if ($pathEntries -notcontains $candidateDir) {
+				$env:Path = "$candidateDir;$env:Path"
+				Write-Host "Added to PATH for this install session: $candidateDir" -ForegroundColor DarkGray
+			}
+
+			if (Get-Command $CommandName -ErrorAction SilentlyContinue) {
+				return
+			}
+		}
+	}
+
+	$locations = if ($CandidateExePaths.Count -gt 0) { $CandidateExePaths -join ", " } else { "(none provided)" }
+	throw "Required command not found: $CommandName. Checked PATH and candidate locations: $locations"
+}
+
 function Invoke-WingetInstall {
 	param(
 		[string]$Name,
@@ -336,8 +365,15 @@ Ensure-InstallFolders -Root $InstallRoot
 Sync-ProjectFiles -Root $InstallRoot
 Ensure-EnvFile -Root $InstallRoot
 
-Assert-Command -CommandName "docker"
-Assert-Command -CommandName "ollama"
+Ensure-CommandAvailable -CommandName "docker" -CandidateExePaths @(
+	"$Env:ProgramFiles\Docker\Docker\resources\bin\docker.exe",
+	"$Env:ProgramFiles\Docker\Docker\resources\docker.exe"
+)
+
+Ensure-CommandAvailable -CommandName "ollama" -CandidateExePaths @(
+	"$Env:LOCALAPPDATA\Programs\Ollama\ollama.exe",
+	"$Env:ProgramFiles\Ollama\ollama.exe"
+)
 
 Start-DockerDesktop
 Start-Stack -Root $InstallRoot
