@@ -64,7 +64,17 @@ services:
       if [ -z \"$$MAIN_PY\" ]; then MAIN_PY='/root/ComfyUI/main.py'; fi;
       mkdir -p /opt/comfy_patches/comfy_aimdo;
       printf '%s\n' '# auto-generated compatibility stub' > /opt/comfy_patches/comfy_aimdo/__init__.py;
-      printf '%s\n' '# auto-generated compatibility stub' > /opt/comfy_patches/comfy_aimdo/control.py;
+        cat > /opt/comfy_patches/comfy_aimdo/control.py <<'PY'
+    # auto-generated compatibility stub
+    def _noop(*args, **kwargs):
+      return None
+
+    def init(*args, **kwargs):
+      return None
+
+    def __getattr__(name):
+      return _noop
+    PY
       export PYTHONPATH=/opt/comfy_patches:$$PYTHONPATH;
       exec python3 \"$$MAIN_PY\" --listen 0.0.0.0 --port 8188
       "
