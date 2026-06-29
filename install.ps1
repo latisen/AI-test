@@ -27,8 +27,10 @@ function Assert-Command {
 
 function Invoke-WingetInstall {
 	param(
+		[string]$Name,
 		[string]$Id,
-		[int]$TimeoutSeconds = 1200
+		[int]$TimeoutSeconds = 1200,
+		[int]$HeartbeatSeconds = 15
 	)
 
 	$args = @(
@@ -38,29 +40,47 @@ function Invoke-WingetInstall {
 		"--source", "winget",
 		"--accept-package-agreements",
 		"--accept-source-agreements",
-		"--disable-interactivity",
-		"--silent"
+		"--disable-interactivity"
 	)
 
+	Write-Host ("[{0}] Starting install: {1} ({2})" -f (Get-Date -Format "HH:mm:ss"), $Name, $Id) -ForegroundColor Yellow
 	$process = Start-Process -FilePath "winget" -ArgumentList $args -NoNewWindow -PassThru
-	if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+	$timedOut = $false
+
+	while (-not $process.HasExited) {
+		if ($stopwatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+			$timedOut = $true
+			break
+		}
+
+		$elapsed = [int]$stopwatch.Elapsed.TotalSeconds
+		Write-Host ("[{0}] Still installing: {1} ({2}) - {3}s elapsed" -f (Get-Date -Format "HH:mm:ss"), $Name, $Id, $elapsed) -ForegroundColor DarkYellow
+		Start-Sleep -Seconds $HeartbeatSeconds
+	}
+
+	if ($timedOut) {
 		$process.Kill()
-		throw "winget install for '$Id' timed out after $TimeoutSeconds seconds. Re-run that package manually to continue."
+		throw "winget install for '$Name' ($Id) timed out after $TimeoutSeconds seconds. Re-run that package manually to continue."
 	}
 
 	if ($process.ExitCode -ne 0) {
-		throw "winget install failed for '$Id' with exit code $($process.ExitCode)."
+		throw "winget install failed for '$Name' ($Id) with exit code $($process.ExitCode)."
 	}
+
+	Write-Host ("[{0}] Finished install: {1} ({2}) in {3}s" -f (Get-Date -Format "HH:mm:ss"), $Name, $Id, [int]$stopwatch.Elapsed.TotalSeconds) -ForegroundColor Green
 }
 
 function Install-WithWinget {
 	param(
+		[int]$Index,
+		[int]$Total,
 		[string]$Id,
 		[string]$Name
 	)
 
-	Write-Host "Installing $Name..."
-	Invoke-WingetInstall -Id $Id
+	Write-Host ("Prerequisite [{0}/{1}] {2}" -f $Index, $Total, $Name) -ForegroundColor Cyan
+	Invoke-WingetInstall -Name $Name -Id $Id
 }
 
 function Enable-WSLIfNeeded {
@@ -250,10 +270,18 @@ Assert-Admin
 Assert-Command -CommandName "winget"
 
 Write-Step "Installing prerequisites"
-Install-WithWinget -Id "Git.Git" -Name "Git"
-Install-WithWinget -Id "Python.Python.3.12" -Name "Python 3.12"
-Install-WithWinget -Id "Docker.DockerDesktop" -Name "Docker Desktop"
-Install-WithWinget -Id "Ollama.Ollama" -Name "Ollama"
+$prerequisites = @(
+	@{ Id = "Git.Git"; Name = "Git" },
+	@{ Id = "Python.Python.3.12"; Name = "Python 3.12" },
+	@{ Id = "Docker.DockerDesktop"; Name = "Docker Desktop" },
+	@{ Id = "Ollama.Ollama"; Name = "Ollama" }
+)
+
+for ($i = 0; $i -lt $prerequisites.Count; $i++) {
+	$pkg = $prerequisites[$i]
+	Install-WithWinget -Index ($i + 1) -Total $prerequisites.Count -Id $pkg.Id -Name $pkg.Name
+}
+
 Write-Host "Ubuntu will be installed via WSL setup." -ForegroundColor DarkGray
 
 Enable-WSLIfNeeded
