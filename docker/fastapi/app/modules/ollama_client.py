@@ -13,11 +13,7 @@ class OllamaClient:
         self.base_url = base_url.rstrip("/")
 
     async def chat(self, model: str, messages: list[dict[str, str]]) -> str:
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-        }
+        payload = {"model": model, "messages": messages, "stream": False}
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(f"{self.base_url}/api/chat", json=payload)
             if response.status_code == 404:
@@ -29,12 +25,36 @@ class OllamaClient:
                     "stream": False,
                 }
                 gen_response = await client.post(f"{self.base_url}/api/generate", json=generate_payload)
-                gen_response.raise_for_status()
-                gen_data = gen_response.json()
-                text = gen_data.get("response")
-                if isinstance(text, str):
-                    return text
-                raise ValueError("Ollama /api/generate response missing 'response' text.")
+                if gen_response.status_code != 404:
+                    gen_response.raise_for_status()
+                    gen_data = gen_response.json()
+                    text = gen_data.get("response")
+                    if isinstance(text, str):
+                        return text
+                    raise ValueError("Ollama /api/generate response missing 'response' text.")
+
+                # Final fallback for OpenAI-compatible servers.
+                oai_payload = {
+                    "model": model,
+                    "messages": messages,
+                    "stream": False,
+                }
+                oai_response = await client.post(f"{self.base_url}/v1/chat/completions", json=oai_payload)
+                oai_response.raise_for_status()
+                oai_data = oai_response.json()
+                choices = oai_data.get("choices", [])
+                if isinstance(choices, list) and choices:
+                    first = choices[0]
+                    if isinstance(first, dict):
+                        message = first.get("message", {})
+                        if isinstance(message, dict):
+                            content = message.get("content")
+                            if isinstance(content, str):
+                                return content
+                        text = first.get("text")
+                        if isinstance(text, str):
+                            return text
+                raise ValueError("OpenAI-compatible response missing assistant text.")
 
             response.raise_for_status()
             data = response.json()
@@ -70,6 +90,21 @@ class OllamaClient:
                             name = item.get("name") or item.get("model")
                             if isinstance(name, str) and name.strip():
                                 names.add(name.strip())
+            except Exception:
+                pass
+
+            # OpenAI-compatible model listing fallback.
+            try:
+                v1_models_response = await client.get(f"{self.base_url}/v1/models")
+                v1_models_response.raise_for_status()
+                v1_data = v1_models_response.json()
+                data_items = v1_data.get("data", [])
+                if isinstance(data_items, list):
+                    for item in data_items:
+                        if isinstance(item, dict):
+                            model_id = item.get("id")
+                            if isinstance(model_id, str) and model_id.strip():
+                                names.add(model_id.strip())
             except Exception:
                 pass
 
