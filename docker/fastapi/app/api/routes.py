@@ -38,7 +38,7 @@ def get_memory_manager(ollama: OllamaClient = Depends(get_ollama_client)) -> Mem
 
 
 def get_comfyui_client() -> ComfyUIClient:
-    return ComfyUIClient(settings.comfyui_url, settings.workflows_dir, settings.images_dir)
+    return ComfyUIClient(settings.comfyui_url, settings.workflows_dir, settings.images_dir, settings.models_dir)
 
 
 @router.get("/health")
@@ -198,6 +198,7 @@ async def create_image(
             height=request.height,
             steps=request.steps,
             cfg=request.cfg,
+            checkpoint=request.checkpoint,
         )
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

@@ -51,6 +51,7 @@ class ImageGenerationRequest(BaseModel):
     character_id: str
     prompt: str
     negative_prompt: str = ""
+    checkpoint: str | None = None
     width: int = 1024
     height: int = 1024
     steps: int = 30

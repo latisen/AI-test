@@ -27,6 +27,7 @@ class Settings:
     characters_dir: str = os.getenv("CHARACTERS_DIR", "/data/characters")
     memories_dir: str = os.getenv("MEMORIES_DIR", "/data/memories")
     images_dir: str = os.getenv("IMAGES_DIR", "/data/images")
+    models_dir: str = os.getenv("MODELS_DIR", "/data/models")
     workflows_dir: str = os.getenv("WORKFLOWS_DIR", "/data/workflows")
     reference_photos_dir: str = os.getenv("REFERENCE_PHOTOS_DIR", "/data/reference_photos")
 

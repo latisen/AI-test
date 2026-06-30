@@ -274,6 +274,7 @@ def generate_image(character_id: str):
             "character_id": character_id,
             "prompt": prompt,
             "negative_prompt": negative_prompt,
+            "checkpoint": _clean(request.form.get("checkpoint")) or None,
             "width": int(request.form.get("width", "1024")),
             "height": int(request.form.get("height", "1024")),
             "steps": int(request.form.get("steps", "30")),

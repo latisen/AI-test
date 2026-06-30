@@ -9,10 +9,11 @@ import httpx
 
 
 class ComfyUIClient:
-    def __init__(self, base_url: str, workflows_dir: str, output_dir: str) -> None:
+    def __init__(self, base_url: str, workflows_dir: str, output_dir: str, models_dir: str) -> None:
         self.base_url = base_url.rstrip("/")
         self.workflows_dir = Path(workflows_dir)
         self.output_dir = output_dir
+        self.models_dir = Path(models_dir)
 
     def _load_workflow(self, workflow_name: str) -> dict[str, Any]:
         path = self.workflows_dir / workflow_name
@@ -30,8 +31,21 @@ class ComfyUIClient:
         height: int | None = None,
         steps: int | None = None,
         cfg: float | None = None,
+        checkpoint: str | None = None,
     ) -> tuple[str, str]:
         workflow = self._load_workflow(workflow_name)
+
+        if checkpoint and "4" in workflow:
+            workflow["4"]["inputs"]["ckpt_name"] = checkpoint
+
+        if "4" in workflow:
+            ckpt_name = workflow["4"]["inputs"].get("ckpt_name")
+            if ckpt_name:
+                ckpt_path = self.models_dir / "checkpoints" / ckpt_name
+                if not ckpt_path.exists():
+                    raise FileNotFoundError(
+                        f"Checkpoint not found: {ckpt_name}. Place it in {ckpt_path.parent} or choose another checkpoint."
+                    )
 
         if "6" in workflow:
             workflow["6"]["inputs"]["text"] = prompt_text

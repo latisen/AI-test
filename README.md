@@ -92,6 +92,7 @@ C:\AICompanion\
 - ComfyUI container (`comfyui` service).
 - SDXL workflow template included (`workflows/sdxl_character.json`).
 - Optional Flux can be added by installing Flux models/workflows in `workflows` and `models`.
+- Ensure at least one checkpoint exists in `models/checkpoints` (for example `sd_xl_base_1.0.safetensors`) and select that checkpoint in the Companion UI image panel.
 
 ### Middleware
 
