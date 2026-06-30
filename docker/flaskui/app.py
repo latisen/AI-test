@@ -304,6 +304,31 @@ def list_recent_generated_images(limit: int = 30) -> list[dict[str, str]]:
     return images
 
 
+@app.route("/api/ollama/test")
+def ollama_test():
+    prompt = _clean(request.args.get("prompt")) or "Säg hej på svenska i en enda kort mening."
+    model = _clean(request.args.get("model")) or session.get("chat_model") or DEFAULT_CHAT_MODEL
+    if model:
+        session["chat_model"] = model
+
+    messages = [
+        {"role": "system", "content": "You are a concise assistant. Reply with one short sentence only."},
+        {"role": "user", "content": prompt},
+    ]
+
+    chunks: list[str] = []
+    try:
+        for chunk in stream_ollama_chat(model, messages):
+            if chunk.startswith("[ERROR]"):
+                return Response(chunk, status=502, mimetype="text/plain; charset=utf-8")
+            chunks.append(chunk)
+    except requests.RequestException as exc:
+        return Response(f"[ERROR] {exc}", status=502, mimetype="text/plain; charset=utf-8")
+
+    text = "".join(chunks).strip() or "(no response)"
+    return Response(text, mimetype="text/plain; charset=utf-8")
+
+
 
 @app.route("/")
 def index():
