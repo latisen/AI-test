@@ -265,16 +265,18 @@ def chat(character_id: str):
     history_key = f"chat::{character_id}"
     history = session.get(history_key, [])
 
+    selected_model = _clean(request.form.get("custom_model")) or _clean(request.form.get("model"))
+
     payload = {
         "user_id": DEFAULT_USER_ID,
         "character_id": character_id,
         "message": message,
         "history": history,
-        "model": _clean(request.form.get("model")) or None,
+        "model": selected_model or None,
     }
 
-    if payload["model"]:
-        session["chat_model"] = payload["model"]
+    if selected_model:
+        session["chat_model"] = selected_model
 
     try:
         response = api_post("/chat", payload)

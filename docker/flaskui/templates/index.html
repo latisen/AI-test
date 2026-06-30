@@ -61,6 +61,7 @@
             <option value="">(kunde inte ladda modeller)</option>
           {% endif %}
         </select>
+        <input type="text" name="custom_model" value="{{ selected_model or '' }}" placeholder="Egen modell, ex leeplenty/lumimaid-v0.2:12b">
         <input type="text" name="message" placeholder="Skriv ett meddelande..." required>
         <button type="submit">Skicka</button>
       </form>

@@ -41,22 +41,39 @@ class OllamaClient:
             return data["message"]["content"]
 
     async def list_models(self) -> list[str]:
+        names: set[str] = set()
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(f"{self.base_url}/api/tags")
-            response.raise_for_status()
-            data = response.json()
+            # Installed models
+            try:
+                tags_response = await client.get(f"{self.base_url}/api/tags")
+                tags_response.raise_for_status()
+                tags_data = tags_response.json()
+                tags_models = tags_data.get("models", [])
+                if isinstance(tags_models, list):
+                    for item in tags_models:
+                        if isinstance(item, dict):
+                            name = item.get("name") or item.get("model")
+                            if isinstance(name, str) and name.strip():
+                                names.add(name.strip())
+            except Exception:
+                pass
 
-        models = data.get("models", [])
-        names: list[str] = []
-        if isinstance(models, list):
-            for item in models:
-                if isinstance(item, dict):
-                    name = item.get("name") or item.get("model")
-                    if isinstance(name, str) and name.strip():
-                        names.append(name.strip())
+            # Currently loaded/running models (some builds expose names here only)
+            try:
+                ps_response = await client.get(f"{self.base_url}/api/ps")
+                ps_response.raise_for_status()
+                ps_data = ps_response.json()
+                ps_models = ps_data.get("models", [])
+                if isinstance(ps_models, list):
+                    for item in ps_models:
+                        if isinstance(item, dict):
+                            name = item.get("name") or item.get("model")
+                            if isinstance(name, str) and name.strip():
+                                names.add(name.strip())
+            except Exception:
+                pass
 
-        # Keep stable ordering and remove duplicates.
-        return sorted(set(names))
+        return sorted(names)
 
     @staticmethod
     def _messages_to_prompt(messages: list[dict[str, str]]) -> str:

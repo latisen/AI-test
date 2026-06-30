@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -79,15 +80,23 @@ async def debug_build() -> dict[str, str]:
 
 @router.get("/models/ollama")
 async def list_ollama_models(ollama: OllamaClient = Depends(get_ollama_client)) -> dict[str, object]:
+    extra_models = [m.strip() for m in os.getenv("OLLAMA_EXTRA_MODELS", "").split(",") if m.strip()]
     try:
         models = await ollama.list_models()
+        merged = sorted(set(models + extra_models + [settings.ollama_default_model, settings.ollama_fallback_model]))
         return {
-            "models": models,
+            "models": merged,
             "default": settings.ollama_default_model,
             "fallback": settings.ollama_fallback_model,
         }
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Could not list Ollama models: {exc}") from exc
+        merged = sorted(set(extra_models + [settings.ollama_default_model, settings.ollama_fallback_model]))
+        return {
+            "models": merged,
+            "default": settings.ollama_default_model,
+            "fallback": settings.ollama_fallback_model,
+            "warning": f"Could not fully list Ollama models: {exc}",
+        }
 
 
 @router.get("/characters")
