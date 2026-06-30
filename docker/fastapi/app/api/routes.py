@@ -188,10 +188,18 @@ async def create_image(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     prompt = compose_image_prompt(character, request.prompt)
-    prompt_id, output_hint = await comfy.queue_prompt(
-        workflow_name=request.workflow,
-        prompt_text=prompt,
-        negative_prompt=request.negative_prompt,
-        seed=request.seed,
-    )
+    try:
+        prompt_id, output_hint = await comfy.queue_prompt(
+            workflow_name=request.workflow,
+            prompt_text=prompt,
+            negative_prompt=request.negative_prompt,
+            seed=request.seed,
+            width=request.width,
+            height=request.height,
+            steps=request.steps,
+            cfg=request.cfg,
+        )
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     return ImageGenerationResponse(prompt_id=prompt_id, workflow=request.workflow, output_hint=output_hint)

@@ -26,7 +26,16 @@ def api_get(path: str) -> dict[str, Any]:
 
 def api_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     response = requests.post(f"{FASTAPI_URL}{path}", json=payload, timeout=30)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        detail = response.text
+        try:
+            parsed = response.json()
+            detail = parsed.get("detail", detail)
+        except ValueError:
+            pass
+        raise requests.HTTPError(f"{exc} :: {detail}") from exc
     return response.json()
 
 
