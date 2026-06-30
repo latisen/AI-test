@@ -195,6 +195,16 @@ def index():
     chat_history = []
     last_image = None
     image_status = None
+    available_models: list[str] = []
+    selected_model = session.get("chat_model")
+
+    try:
+        model_payload = api_get("/models/ollama")
+        available_models = [m for m in model_payload.get("models", []) if isinstance(m, str)]
+        if not selected_model:
+            selected_model = model_payload.get("default")
+    except requests.RequestException:
+        available_models = []
     if active_id:
         try:
             active_profile = api_get(f"/characters/{active_id}")
@@ -213,6 +223,8 @@ def index():
         chat_history=chat_history,
         last_image=last_image,
         image_status=image_status,
+        available_models=available_models,
+        selected_model=selected_model,
     )
 
 
@@ -258,7 +270,11 @@ def chat(character_id: str):
         "character_id": character_id,
         "message": message,
         "history": history,
+        "model": _clean(request.form.get("model")) or None,
     }
+
+    if payload["model"]:
+        session["chat_model"] = payload["model"]
 
     try:
         response = api_post("/chat", payload)

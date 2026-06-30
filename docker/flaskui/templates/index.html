@@ -52,6 +52,15 @@
       </section>
 
       <form class="chat-form" method="post" action="{{ url_for('chat', character_id=active_id) }}">
+        <select name="model">
+          {% if available_models %}
+            {% for model_name in available_models %}
+              <option value="{{ model_name }}" {% if selected_model == model_name %}selected{% endif %}>{{ model_name }}</option>
+            {% endfor %}
+          {% else %}
+            <option value="">(kunde inte ladda modeller)</option>
+          {% endif %}
+        </select>
         <input type="text" name="message" placeholder="Skriv ett meddelande..." required>
         <button type="submit">Skicka</button>
       </form>

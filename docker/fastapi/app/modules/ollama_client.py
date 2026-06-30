@@ -20,9 +20,53 @@ class OllamaClient:
         }
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(f"{self.base_url}/api/chat", json=payload)
+            if response.status_code == 404:
+                # Backward compatibility for Ollama variants exposing only /api/generate.
+                prompt = self._messages_to_prompt(messages)
+                generate_payload = {
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                }
+                gen_response = await client.post(f"{self.base_url}/api/generate", json=generate_payload)
+                gen_response.raise_for_status()
+                gen_data = gen_response.json()
+                text = gen_data.get("response")
+                if isinstance(text, str):
+                    return text
+                raise ValueError("Ollama /api/generate response missing 'response' text.")
+
             response.raise_for_status()
             data = response.json()
             return data["message"]["content"]
+
+    async def list_models(self) -> list[str]:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(f"{self.base_url}/api/tags")
+            response.raise_for_status()
+            data = response.json()
+
+        models = data.get("models", [])
+        names: list[str] = []
+        if isinstance(models, list):
+            for item in models:
+                if isinstance(item, dict):
+                    name = item.get("name") or item.get("model")
+                    if isinstance(name, str) and name.strip():
+                        names.append(name.strip())
+
+        # Keep stable ordering and remove duplicates.
+        return sorted(set(names))
+
+    @staticmethod
+    def _messages_to_prompt(messages: list[dict[str, str]]) -> str:
+        lines: list[str] = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            lines.append(f"{role.upper()}: {content}")
+        lines.append("ASSISTANT:")
+        return "\n\n".join(lines)
 
     async def embed(self, text: str) -> list[float]:
         payload = {

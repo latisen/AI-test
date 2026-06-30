@@ -77,6 +77,19 @@ async def debug_build() -> dict[str, str]:
     return {"build": BUILD_MARKER}
 
 
+@router.get("/models/ollama")
+async def list_ollama_models(ollama: OllamaClient = Depends(get_ollama_client)) -> dict[str, object]:
+    try:
+        models = await ollama.list_models()
+        return {
+            "models": models,
+            "default": settings.ollama_default_model,
+            "fallback": settings.ollama_fallback_model,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not list Ollama models: {exc}") from exc
+
+
 @router.get("/characters")
 async def list_characters(cm: CharacterManager = Depends(get_character_manager)) -> dict[str, list[str]]:
     return {"characters": cm.list_characters()}
