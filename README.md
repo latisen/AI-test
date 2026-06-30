@@ -10,7 +10,7 @@ This repository provides a complete local AI companion infrastructure stack desi
 It includes:
 
 - Persistent web chat UI via Open WebUI
-- LLM backend via Ollama
+- LLM backend via Ollama and LM Studio-compatible chat in the companion UI
 - Long-term memory via Qdrant
 - Character profile system with JSON storage
 - FastAPI middleware bridge for chat/memory/image orchestration
@@ -70,8 +70,8 @@ C:\AICompanion\
 ### Frontend
 
 - Open WebUI container (`open-webui` service).
-- Companion management UI container (`companion-ui` service) for creating/listing companions, uploading reference photos, and chatting via the bridge.
-	- Chat now streams directly from Ollama API in the UI, so the bridge is no longer in the chat path.
+- Companion management UI container (`companion-ui` service) for creating/listing companions, uploading reference photos, and chatting directly against LM Studio.
+	- Chat now streams directly from LM Studio's OpenAI-compatible API in the UI, so the bridge is no longer in the chat path.
 	- Includes an image generator panel for structured prompts (scene, outfit, style, hair, body build, camera settings, workflow, seed, negative prompt).
 	- Includes tabbed main workspace (`Chat`, `Galleri`, `Bildgenerering`, `Settings`) and streamed chat responses in the chat view.
 
@@ -83,6 +83,12 @@ C:\AICompanion\
 	- `llama3.1:8b`
 - Embeddings model:
 	- `nomic-embed-text`
+
+### LM Studio Chat
+
+- Companion UI uses LM Studio's OpenAI-compatible API for chat.
+- Default browser test URL: `http://localhost:5050/api/lmstudio/test?prompt=Skriv%20hej%20p%C3%A5%20svenska%20i%20en%20kort%20mening.`
+- Default LM Studio base URL in Docker: `http://host.docker.internal:1234/v1`
 
 ### Memory
 
@@ -211,6 +217,10 @@ Memory pipeline:
 Bridge endpoint:
 
 - `POST /chat`
+
+### Browser Test Route
+
+- `GET /api/lmstudio/test`
 
 Behavior:
 

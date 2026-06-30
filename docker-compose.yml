@@ -111,14 +111,16 @@ services:
     restart: unless-stopped
     depends_on:
       - fastapi-bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - FASTAPI_URL=http://fastapi-bridge:8080
-      - OLLAMA_URL=http://ollama:11434
+      - LMSTUDIO_URL=http://192.168.1.60:1234/v1
       - REFERENCE_PHOTOS_DIR=/data/reference_photos
       - IMAGES_DIR=/data/images
-      - OLLAMA_DEFAULT_TEXT_MODEL=${OLLAMA_DEFAULT_TEXT_MODEL:-qwen2.5:14b}
-      - OLLAMA_FALLBACK_TEXT_MODEL=${OLLAMA_FALLBACK_TEXT_MODEL:-llama3.1:8b}
-      - OLLAMA_EXTRA_MODELS=${OLLAMA_EXTRA_MODELS:-}
+      - LMSTUDIO_DEFAULT_TEXT_MODEL=${LMSTUDIO_DEFAULT_TEXT_MODEL:-}
+      - LMSTUDIO_FALLBACK_TEXT_MODEL=${LMSTUDIO_FALLBACK_TEXT_MODEL:-}
+      - LMSTUDIO_EXTRA_MODELS=${LMSTUDIO_EXTRA_MODELS:-}
       - CHAT_TIMEOUT_SECONDS=${CHAT_TIMEOUT_SECONDS:-240}
     ports:
       - "${COMPANION_UI_PORT:-5050}:5000"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 from typing import Any
 
@@ -12,13 +13,13 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
 
 FASTAPI_URL = os.getenv("FASTAPI_URL", "http://fastapi-bridge:8080")
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+LMSTUDIO_URL = os.getenv("LMSTUDIO_URL", os.getenv("OLLAMA_URL", "http://host.docker.internal:1234/v1")).rstrip("/")
 REFERENCE_DIR = Path(os.getenv("REFERENCE_PHOTOS_DIR", "/data/reference_photos"))
 IMAGES_DIR = Path(os.getenv("IMAGES_DIR", "/data/images"))
 DEFAULT_USER_ID = os.getenv("UI_USER_ID", "local-user")
-DEFAULT_CHAT_MODEL = os.getenv("OLLAMA_DEFAULT_TEXT_MODEL", "qwen2.5:14b")
-FALLBACK_CHAT_MODEL = os.getenv("OLLAMA_FALLBACK_TEXT_MODEL", "llama3.1:8b")
-EXTRA_CHAT_MODELS = [m.strip() for m in os.getenv("OLLAMA_EXTRA_MODELS", "").split(",") if m.strip()]
+DEFAULT_CHAT_MODEL = os.getenv("LMSTUDIO_DEFAULT_TEXT_MODEL", os.getenv("OLLAMA_DEFAULT_TEXT_MODEL", ""))
+FALLBACK_CHAT_MODEL = os.getenv("LMSTUDIO_FALLBACK_TEXT_MODEL", os.getenv("OLLAMA_FALLBACK_TEXT_MODEL", ""))
+EXTRA_CHAT_MODELS = [m.strip() for m in os.getenv("LMSTUDIO_EXTRA_MODELS", os.getenv("OLLAMA_EXTRA_MODELS", "")).split(",") if m.strip()]
 CHAT_TIMEOUT_SECONDS = int(os.getenv("CHAT_TIMEOUT_SECONDS", "240"))
 
 
@@ -57,35 +58,24 @@ def api_post_file(path: str, file_storage) -> dict[str, Any]:
     return response.json()
 
 
-def ollama_get(path: str) -> dict[str, Any]:
-    response = requests.get(f"{OLLAMA_URL}{path}", timeout=20)
+def lmstudio_get(path: str) -> dict[str, Any]:
+    response = requests.get(f"{LMSTUDIO_URL}{path}", timeout=20)
     response.raise_for_status()
     return response.json()
 
 
-def list_ollama_models() -> list[str]:
+def list_lmstudio_models() -> list[str]:
     names: set[str] = set()
-    for path in ("/api/tags", "/api/ps", "/v1/models"):
-        try:
-            payload = ollama_get(path)
-        except requests.RequestException:
-            continue
+    try:
+        payload = lmstudio_get("/v1/models")
+    except requests.RequestException:
+        return []
 
-        if path == "/v1/models":
-            for item in payload.get("data", []):
-                if isinstance(item, dict):
-                    model_id = item.get("id")
-                    if isinstance(model_id, str) and model_id.strip():
-                        names.add(model_id.strip())
-            continue
-
-        models = payload.get("models", [])
-        if isinstance(models, list):
-            for item in models:
-                if isinstance(item, dict):
-                    name = item.get("name") or item.get("model")
-                    if isinstance(name, str) and name.strip():
-                        names.add(name.strip())
+    for item in payload.get("data", []):
+        if isinstance(item, dict):
+            model_id = item.get("id")
+            if isinstance(model_id, str) and model_id.strip():
+                names.add(model_id.strip())
 
     return sorted(names)
 
@@ -124,16 +114,16 @@ def build_chat_messages(character: dict[str, Any], memory_hits: list[str], histo
     return messages
 
 
-def stream_ollama_chat(model: str, messages: list[dict[str, str]]):
+def stream_lmstudio_chat(model: str, messages: list[dict[str, str]]):
     payload = {"model": model, "messages": messages, "stream": True}
     with requests.post(
-        f"{OLLAMA_URL}/api/chat",
+        f"{LMSTUDIO_URL}/chat/completions",
         json=payload,
         stream=True,
         timeout=(15, CHAT_TIMEOUT_SECONDS),
     ) as response:
         if response.status_code >= 400:
-            detail = response.text.strip() or response.reason or "ollama request failed"
+            detail = response.text.strip() or response.reason or "LM Studio request failed"
             yield f"[ERROR] {detail}"
             return
 
@@ -141,18 +131,25 @@ def stream_ollama_chat(model: str, messages: list[dict[str, str]]):
         for line in response.iter_lines(decode_unicode=True):
             if not line:
                 continue
-            if line.strip() == "[DONE]":
+            line = line.strip()
+            if not line.startswith("data:"):
+                continue
+            data_text = line[5:].strip()
+            if data_text == "[DONE]":
                 continue
             try:
-                import json as _json
-                data = _json.loads(line)
+                data = json.loads(data_text)
             except Exception:
                 continue
-            message = data.get("message")
-            if isinstance(message, dict):
-                content = message.get("content")
-                if isinstance(content, str) and content:
-                    yield content
+            choices = data.get("choices")
+            if isinstance(choices, list) and choices:
+                first_choice = choices[0]
+                if isinstance(first_choice, dict):
+                    delta = first_choice.get("delta") or first_choice.get("message") or {}
+                    if isinstance(delta, dict):
+                        content = delta.get("content")
+                        if isinstance(content, str) and content:
+                            yield content
 
 
 
@@ -304,8 +301,9 @@ def list_recent_generated_images(limit: int = 30) -> list[dict[str, str]]:
     return images
 
 
+@app.route("/api/lmstudio/test")
 @app.route("/api/ollama/test")
-def ollama_test():
+def lmstudio_test():
     prompt = _clean(request.args.get("prompt")) or "Säg hej på svenska i en enda kort mening."
     model = _clean(request.args.get("model")) or session.get("chat_model") or DEFAULT_CHAT_MODEL
     if model:
@@ -318,7 +316,7 @@ def ollama_test():
 
     chunks: list[str] = []
     try:
-        for chunk in stream_ollama_chat(model, messages):
+        for chunk in stream_lmstudio_chat(model, messages):
             if chunk.startswith("[ERROR]"):
                 return Response(chunk, status=502, mimetype="text/plain; charset=utf-8")
             chunks.append(chunk)
@@ -347,11 +345,11 @@ def index():
     recent_images = list_recent_generated_images()
 
     try:
-        available_models = list_ollama_models()
+        available_models = list_lmstudio_models()
         if not selected_model:
             selected_model = available_models[0] if available_models else DEFAULT_CHAT_MODEL
     except requests.RequestException:
-        model_warning = "Kunde inte hämta modellistan direkt från Ollama. Visar lokal fallback-lista."
+        model_warning = "Kunde inte hämta modellistan direkt från LM Studio. Visar lokal fallback-lista."
 
     fallback_models = [DEFAULT_CHAT_MODEL, FALLBACK_CHAT_MODEL, *EXTRA_CHAT_MODELS]
     if selected_model:
@@ -523,7 +521,7 @@ def chat_stream_proxy(character_id: str):
     def generate():
         try:
             chunks: list[str] = []
-            for chunk in stream_ollama_chat(model, messages):
+            for chunk in stream_lmstudio_chat(model, messages):
                 if chunk.startswith("[ERROR]"):
                     yield chunk
                     return
