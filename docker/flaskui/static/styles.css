@@ -222,6 +222,26 @@ main {
   white-space: pre-wrap;
 }
 
+.msg strong {
+  font-weight: 700;
+}
+
+.msg em {
+  font-style: italic;
+}
+
+.msg-aside {
+  display: block;
+  padding: 0.15rem 0;
+  color: #ffd3e6;
+  font-style: italic;
+  opacity: 0.92;
+}
+
+.msg-user .msg-aside {
+  color: #2b0019;
+}
+
 .msg-user {
   margin-left: auto;
   background: linear-gradient(140deg, #ff0f8d, #ff62b0);

@@ -23,11 +23,66 @@
     return;
   }
 
+  function appendFormattedText(target, text) {
+    const tokenPattern = /(\*\*\([\s\S]+?\)\*\*|\*\*[\s\S]+?\*\*|\*[\s\S]+?\*)/g;
+    const parts = text.split(tokenPattern).filter((part) => part !== '');
+
+    parts.forEach((part) => {
+      if (part.startsWith('**(') && part.endsWith(')**')) {
+        const aside = document.createElement('span');
+        aside.className = 'msg-aside';
+        aside.textContent = part.slice(2, -2);
+        target.appendChild(aside);
+        return;
+      }
+
+      if (part.startsWith('**') && part.endsWith('**')) {
+        const strong = document.createElement('strong');
+        strong.textContent = part.slice(2, -2);
+        target.appendChild(strong);
+        return;
+      }
+
+      if (part.startsWith('*') && part.endsWith('*')) {
+        const em = document.createElement('em');
+        em.textContent = part.slice(1, -1);
+        target.appendChild(em);
+        return;
+      }
+
+      target.appendChild(document.createTextNode(part));
+    });
+  }
+
+  function renderMessage(target, text) {
+    target.replaceChildren();
+    const paragraphs = text.split(/\n{2,}/);
+
+    paragraphs.forEach((paragraph, index) => {
+      if (index > 0) {
+        target.appendChild(document.createElement('br'));
+        target.appendChild(document.createElement('br'));
+      }
+
+      const lines = paragraph.split('\n');
+      lines.forEach((line, lineIndex) => {
+        if (lineIndex > 0) {
+          target.appendChild(document.createElement('br'));
+        }
+        appendFormattedText(target, line);
+      });
+    });
+  }
+
+  chatLog.querySelectorAll('.msg p').forEach((node) => {
+    renderMessage(node, node.textContent || '');
+  });
+
   function appendBubble(role, text, streaming = false) {
     const article = document.createElement('article');
     article.className = `msg msg-${role}`;
     const p = document.createElement('p');
-    p.textContent = text;
+    renderMessage(p, text);
     article.appendChild(p);
     if (streaming) {
       article.dataset.streaming = '1';
@@ -100,12 +155,12 @@
         }
         const chunk = decoder.decode(value, { stream: true });
         fullText += chunk;
-        assistantP.textContent = fullText;
+        renderMessage(assistantP, fullText);
         chatLog.scrollTop = chatLog.scrollHeight;
       }
 
       if (fullText.startsWith('[ERROR]')) {
-        assistantP.textContent = fullText;
+        renderMessage(assistantP, fullText);
       } else {
         try {
           await persistChat(characterId, message, fullText.trim());
@@ -114,7 +169,7 @@
         }
       }
     } catch (err) {
-      assistantP.textContent = `Fel: ${err}`;
+      renderMessage(assistantP, `Fel: ${err}`);
     } finally {
       sendBtn.disabled = false;
       messageInput.focus();
