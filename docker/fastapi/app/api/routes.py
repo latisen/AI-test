@@ -233,14 +233,22 @@ async def chat(
         assistant_reply = await ollama.chat(model, messages)
     except Exception as exc:
         primary_error = exc
+
+        # If the user explicitly selected a model, do not silently switch to fallback.
+        if request.model:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Ollama chat failed for selected model '{model}': {primary_error!r}",
+            ) from exc
+
         try:
             assistant_reply = await ollama.chat(settings.ollama_fallback_model, messages)
         except Exception as fallback_exc:
             raise HTTPException(
                 status_code=502,
                 detail=(
-                    f"Ollama chat failed for primary model '{model}' ({primary_error}) "
-                    f"and fallback '{settings.ollama_fallback_model}' ({fallback_exc})."
+                    f"Ollama chat failed for primary model '{model}' ({primary_error!r}) "
+                    f"and fallback '{settings.ollama_fallback_model}' ({fallback_exc!r})."
                 ),
             ) from fallback_exc
 
