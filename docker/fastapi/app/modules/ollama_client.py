@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Any
 
 import httpx
@@ -17,6 +18,13 @@ class OllamaClient:
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(f"{self.base_url}/api/chat", json=payload)
             if response.status_code == 404:
+                chat_error = self._extract_error_text(response)
+                if self._is_model_not_found_error(chat_error):
+                    raise RuntimeError(
+                        f"Model '{model}' not found in Ollama. Pull it in the running Ollama service and retry. "
+                        f"Details: {chat_error}"
+                    )
+
                 # Backward compatibility for Ollama variants exposing only /api/generate.
                 prompt = self._messages_to_prompt(messages)
                 generate_payload = {
@@ -33,6 +41,13 @@ class OllamaClient:
                         return text
                     raise ValueError("Ollama /api/generate response missing 'response' text.")
 
+                gen_error = self._extract_error_text(gen_response)
+                if self._is_model_not_found_error(gen_error):
+                    raise RuntimeError(
+                        f"Model '{model}' not found in Ollama. Pull it in the running Ollama service and retry. "
+                        f"Details: {gen_error}"
+                    )
+
                 # Final fallback for OpenAI-compatible servers.
                 oai_payload = {
                     "model": model,
@@ -40,6 +55,11 @@ class OllamaClient:
                     "stream": False,
                 }
                 oai_response = await client.post(f"{self.base_url}/v1/chat/completions", json=oai_payload)
+                if oai_response.status_code == 404:
+                    raise RuntimeError(
+                        "No supported chat endpoint found on upstream LLM service. "
+                        "Tried /api/chat, /api/generate, and /v1/chat/completions."
+                    )
                 oai_response.raise_for_status()
                 oai_data = oai_response.json()
                 choices = oai_data.get("choices", [])
@@ -119,6 +139,26 @@ class OllamaClient:
             lines.append(f"{role.upper()}: {content}")
         lines.append("ASSISTANT:")
         return "\n\n".join(lines)
+
+    @staticmethod
+    def _extract_error_text(response: httpx.Response) -> str:
+        text = response.text.strip()
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                candidate = payload.get("error") or payload.get("message")
+                if isinstance(candidate, str) and candidate.strip():
+                    return candidate.strip()
+        except Exception:
+            pass
+        return text
+
+    @staticmethod
+    def _is_model_not_found_error(detail: str) -> bool:
+        lowered = detail.lower()
+        if "model" in lowered and "not found" in lowered:
+            return True
+        return bool(re.search(r"pull|manifest|unknown model", lowered))
 
     async def embed(self, text: str) -> list[float]:
         payload = {
