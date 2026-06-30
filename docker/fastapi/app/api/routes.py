@@ -125,30 +125,42 @@ async def chat(
     except (ValueError, FileNotFoundError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    memory_hits = await mm.retrieve_relevant_memories(
-        user_id=request.user_id,
-        character_id=request.character_id,
-        query_text=request.message,
-        top_k=settings.retrieval_top_k,
-    )
+    try:
+        memory_hits = await mm.retrieve_relevant_memories(
+            user_id=request.user_id,
+            character_id=request.character_id,
+            query_text=request.message,
+            top_k=settings.retrieval_top_k,
+        )
+    except Exception:
+        # Keep chat functional even if vector memory backend is temporarily unavailable.
+        memory_hits = []
 
     if is_image_request(request.message):
         prompt = compose_image_prompt(character, request.message)
-        prompt_id, output_hint = await comfy.queue_prompt(
-            workflow_name="sdxl_character.json",
-            prompt_text=prompt,
-            negative_prompt=(
-                "minor, child, underage, teen, non-consensual, real person, celebrity, low quality, blurry"
-            ),
-        )
-        await mm.write_memory(request.user_id, request.character_id, "user", request.message)
-        await mm.write_memory(
-            request.user_id,
-            request.character_id,
-            "assistant",
-            f"Queued image request {prompt_id} with workflow sdxl_character.json",
-            metadata={"response_type": "image", "prompt_id": prompt_id},
-        )
+        try:
+            prompt_id, output_hint = await comfy.queue_prompt(
+                workflow_name="sdxl_character.json",
+                prompt_text=prompt,
+                negative_prompt=(
+                    "minor, child, underage, teen, non-consensual, real person, celebrity, low quality, blurry"
+                ),
+            )
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=502, detail=f"Image queue failed: {exc}") from exc
+
+        try:
+            await mm.write_memory(request.user_id, request.character_id, "user", request.message)
+            await mm.write_memory(
+                request.user_id,
+                request.character_id,
+                "assistant",
+                f"Queued image request {prompt_id} with workflow sdxl_character.json",
+                metadata={"response_type": "image", "prompt_id": prompt_id},
+            )
+        except Exception:
+            pass
+
         return ChatResponse(
             response_type="image",
             text="Image request queued in ComfyUI.",
@@ -163,13 +175,27 @@ async def chat(
     messages.append({"role": "user", "content": request.message})
 
     model = request.model or settings.ollama_default_model
+    primary_error: Exception | None = None
     try:
         assistant_reply = await ollama.chat(model, messages)
-    except Exception:
-        assistant_reply = await ollama.chat(settings.ollama_fallback_model, messages)
+    except Exception as exc:
+        primary_error = exc
+        try:
+            assistant_reply = await ollama.chat(settings.ollama_fallback_model, messages)
+        except Exception as fallback_exc:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Ollama chat failed for primary model '{model}' ({primary_error}) "
+                    f"and fallback '{settings.ollama_fallback_model}' ({fallback_exc})."
+                ),
+            ) from fallback_exc
 
-    await mm.write_memory(request.user_id, request.character_id, "user", request.message)
-    await mm.write_memory(request.user_id, request.character_id, "assistant", assistant_reply)
+    try:
+        await mm.write_memory(request.user_id, request.character_id, "user", request.message)
+        await mm.write_memory(request.user_id, request.character_id, "assistant", assistant_reply)
+    except Exception:
+        pass
 
     return ChatResponse(response_type="text", text=assistant_reply, memory_hits=memory_hits)
 
