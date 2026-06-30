@@ -128,7 +128,13 @@ def stream_lmstudio_chat(model: str, messages: list[dict[str, str]]):
             return
 
         yield "\n"
-        for line in response.iter_lines(decode_unicode=True):
+        for raw_line in response.iter_lines(decode_unicode=False):
+            if not raw_line:
+                continue
+            try:
+                line = raw_line.decode("utf-8")
+            except UnicodeDecodeError:
+                line = raw_line.decode("utf-8", errors="replace")
             if not line:
                 continue
             line = line.strip()
