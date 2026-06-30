@@ -23,6 +23,27 @@ from app.modules.safety import assert_safe_text
 router = APIRouter()
 
 
+class NoopMemoryManager:
+    async def retrieve_relevant_memories(
+        self,
+        user_id: str,
+        character_id: str,
+        query_text: str,
+        top_k: int,
+    ) -> list[str]:
+        return []
+
+    async def write_memory(
+        self,
+        user_id: str,
+        character_id: str,
+        role: str,
+        text: str,
+        metadata: dict[str, object] | None = None,
+    ) -> str:
+        return ""
+
+
 def get_character_manager() -> CharacterManager:
     return CharacterManager(settings.characters_dir)
 
@@ -31,10 +52,14 @@ def get_ollama_client() -> OllamaClient:
     return OllamaClient(settings.ollama_url)
 
 
-def get_memory_manager(ollama: OllamaClient = Depends(get_ollama_client)) -> MemoryManager:
-    manager = MemoryManager(settings.qdrant_url, settings.qdrant_collection, ollama)
-    manager.ensure_collection()
-    return manager
+def get_memory_manager(ollama: OllamaClient = Depends(get_ollama_client)) -> MemoryManager | NoopMemoryManager:
+    try:
+        manager = MemoryManager(settings.qdrant_url, settings.qdrant_collection, ollama)
+        manager.ensure_collection()
+        return manager
+    except Exception:
+        # Keep chat usable even if Qdrant is temporarily unavailable.
+        return NoopMemoryManager()
 
 
 def get_comfyui_client() -> ComfyUIClient:
