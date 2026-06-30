@@ -402,7 +402,7 @@ def chat_stream_proxy(character_id: str):
                 f"{FASTAPI_URL}/chat/stream",
                 json=payload,
                 stream=True,
-                timeout=(15, CHAT_TIMEOUT_SECONDS),
+                timeout=(15, None),
             ) as resp:
                 if resp.status_code >= 400:
                     text = resp.text.strip() or "stream request failed"

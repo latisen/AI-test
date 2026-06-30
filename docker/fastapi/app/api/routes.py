@@ -295,6 +295,9 @@ async def chat_stream(
 
     async def event_stream():
         chunks: list[str] = []
+        # Send an immediate byte so reverse proxies and client-side requests
+        # do not sit idle waiting for the first model token.
+        yield "\n"
         try:
             async for chunk in ollama.chat_stream(model, messages):
                 chunks.append(chunk)
