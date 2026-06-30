@@ -13,6 +13,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
 
 FASTAPI_URL = os.getenv("FASTAPI_URL", "http://fastapi-bridge:8080")
 REFERENCE_DIR = Path(os.getenv("REFERENCE_PHOTOS_DIR", "/data/reference_photos"))
+IMAGES_DIR = Path(os.getenv("IMAGES_DIR", "/data/images"))
 DEFAULT_USER_ID = os.getenv("UI_USER_ID", "local-user")
 
 
@@ -189,11 +190,14 @@ def index():
     active_profile = None
     chat_history = []
     last_image = None
+    image_status = None
     if active_id:
         try:
             active_profile = api_get(f"/characters/{active_id}")
             chat_history = session.get(f"chat::{active_id}", [])
             last_image = session.get(f"image::{active_id}")
+            if last_image and last_image.get("prompt_id"):
+                image_status = api_get(f"/images/{last_image['prompt_id']}/status")
         except requests.RequestException as exc:
             flash(f"Could not load companion: {exc}", "error")
 
@@ -204,6 +208,7 @@ def index():
         active_profile=active_profile,
         chat_history=chat_history,
         last_image=last_image,
+        image_status=image_status,
     )
 
 
@@ -301,6 +306,11 @@ def static_avatar(character_id: str, filename: str):
     if not target_dir.exists():
         abort(404)
     return send_from_directory(target_dir, filename)
+
+
+@app.route("/media/generated/<path:filename>")
+def generated_image(filename: str):
+    return send_from_directory(IMAGES_DIR, filename)
 
 
 if __name__ == "__main__":

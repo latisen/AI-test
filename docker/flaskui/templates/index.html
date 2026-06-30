@@ -68,6 +68,20 @@
             <span>prompt_id: {{ last_image.prompt_id }}</span>
             <span>workflow: {{ last_image.workflow }}</span>
             <span>{{ last_image.output_hint }}</span>
+            {% if image_status %}
+              <span>Status: {{ image_status.state }}</span>
+            {% endif %}
+          </div>
+        {% endif %}
+
+        {% if image_status and image_status.images %}
+          <div class="generated-grid">
+            {% for image in image_status.images %}
+              {% set relpath = image.filename if not image.subfolder else image.subfolder ~ '/' ~ image.filename %}
+              <a href="{{ url_for('generated_image', filename=relpath) }}" target="_blank" class="generated-item">
+                <img src="{{ url_for('generated_image', filename=relpath) }}" alt="Generated image">
+              </a>
+            {% endfor %}
           </div>
         {% endif %}
 

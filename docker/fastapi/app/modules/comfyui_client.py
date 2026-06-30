@@ -84,3 +84,39 @@ class ComfyUIClient:
             prompt_id = data.get("prompt_id", "unknown")
 
         return prompt_id, self.output_dir
+
+    async def get_prompt_status(self, prompt_id: str) -> dict[str, Any]:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                response = await client.get(f"{self.base_url}/history/{prompt_id}")
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                detail = exc.response.text.strip()[:1000]
+                raise RuntimeError(
+                    f"ComfyUI returned HTTP {exc.response.status_code} while reading history: {detail}"
+                ) from exc
+            except httpx.RequestError as exc:
+                raise RuntimeError(f"Could not reach ComfyUI at {self.base_url}: {exc}") from exc
+
+        payload = response.json()
+        prompt_entry = payload.get(prompt_id)
+        if not prompt_entry:
+            return {"prompt_id": prompt_id, "state": "queued", "images": []}
+
+        outputs = prompt_entry.get("outputs", {})
+        images: list[dict[str, str]] = []
+        for node in outputs.values():
+            for image in node.get("images", []):
+                filename = image.get("filename")
+                if not filename:
+                    continue
+                images.append(
+                    {
+                        "filename": filename,
+                        "subfolder": image.get("subfolder", ""),
+                        "type": image.get("type", "output"),
+                    }
+                )
+
+        state = "completed" if images else "processing"
+        return {"prompt_id": prompt_id, "state": state, "images": images}

@@ -204,3 +204,14 @@ async def create_image(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return ImageGenerationResponse(prompt_id=prompt_id, workflow=request.workflow, output_hint=output_hint)
+
+
+@router.get("/images/{prompt_id}/status")
+async def image_status(
+    prompt_id: str,
+    comfy: ComfyUIClient = Depends(get_comfyui_client),
+) -> dict[str, object]:
+    try:
+        return await comfy.get_prompt_status(prompt_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

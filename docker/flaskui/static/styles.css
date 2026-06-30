@@ -248,6 +248,28 @@ main {
   font-size: 0.85rem;
 }
 
+.generated-grid {
+  margin-bottom: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.generated-item {
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 79, 169, 0.3);
+  background: rgba(255, 79, 169, 0.06);
+}
+
+.generated-item img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+}
+
 .image-form {
   display: grid;
   gap: 0.7rem;
