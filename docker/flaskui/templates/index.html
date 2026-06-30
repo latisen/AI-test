@@ -247,6 +247,15 @@
             <strong>Adults only</strong>
           </div>
         </div>
+
+        <form class="settings-form glass" method="post" action="{{ url_for('update_companion_settings', character_id=active_id) }}">
+          <label for="companion-prompt">Companion-prompt</label>
+          <textarea id="companion-prompt" name="companion_prompt" rows="8" placeholder="Beskriv hur just den här companionen ska bete sig, tala, initiera, svara och hålla sin persona.">{{ active_profile.companion_prompt or '' }}</textarea>
+          <p class="settings-help">Den här texten läggs in i systemprompten varje gång du chattar med companionen.</p>
+          <div class="form-actions">
+            <button type="submit">Spara Settings</button>
+          </div>
+        </form>
       </section>
     {% else %}
       <div class="empty-state">

@@ -33,6 +33,7 @@ class CharacterManager:
             profile.appearance_description,
             profile.relationship_history,
             profile.speech_style,
+            profile.companion_prompt or "",
             " ".join(profile.boundaries),
         ):
             assert_safe_text(field)

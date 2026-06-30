@@ -87,6 +87,7 @@ def build_chat_messages(character: dict[str, Any], memory_hits: list[str], histo
     relationship_history = character.get("relationship_history", "")
     interests = ", ".join(character.get("interests", []))
     speech_style = character.get("speech_style", "")
+    companion_prompt = character.get("companion_prompt", "")
     boundaries = "\n".join(f"- {item}" for item in character.get("boundaries", []))
     memory_block = "\n".join(f"- {snippet}" for snippet in memory_hits) if memory_hits else "- None yet"
 
@@ -100,6 +101,7 @@ def build_chat_messages(character: dict[str, Any], memory_hits: list[str], histo
         f"Relationship history: {relationship_history}\n"
         f"Interests: {interests}\n"
         f"Speech style: {speech_style}\n"
+        f"Companion-specific behavior instructions: {companion_prompt or 'Stay consistent with the profile and respond naturally.'}\n"
         "Boundaries (must never be violated):\n"
         f"{boundaries}\n"
         "Relevant long-term memory:\n"
@@ -218,6 +220,7 @@ def build_profile(form: dict[str, str]) -> dict[str, Any]:
         "interests": interests,
         "speech_style": form.get("speech_style", "Playful, empathetic, and direct."),
         "boundaries": boundaries,
+        "companion_prompt": form.get("companion_prompt", "").strip() or None,
         "memory_database": f"{slugify(form.get('name', 'companion'))}-memory",
         "instantid": {
             "enabled": True,
@@ -420,6 +423,19 @@ def create_companion():
             flash(str(exc), "error")
 
     return render_template("new_companion.html")
+
+
+@app.route("/companions/<character_id>/settings", methods=["POST"])
+def update_companion_settings(character_id: str):
+    try:
+        profile = api_get(f"/characters/{character_id}")
+        profile["companion_prompt"] = _clean(request.form.get("companion_prompt")) or None
+        api_post(f"/characters/{character_id}", profile)
+        flash("Companion-prompt uppdaterad.", "success")
+    except requests.RequestException as exc:
+        flash(f"Kunde inte spara settings: {exc}", "error")
+
+    return redirect(url_for("index", character_id=character_id, _anchor="settings"))
 
 
 @app.route("/chat/<character_id>", methods=["POST"])

@@ -17,6 +17,7 @@ class CharacterProfile(BaseModel):
     speech_style: str
     boundaries: list[str]
     memory_database: str
+    companion_prompt: str | None = None
     lora: dict[str, Any] | None = None
     instantid: dict[str, Any] | None = None
     ipadapter: dict[str, Any] | None = None
