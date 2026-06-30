@@ -65,6 +65,9 @@
         <input type="text" name="message" placeholder="Skriv ett meddelande..." required>
         <button type="submit">Skicka</button>
       </form>
+      {% if model_warning %}
+        <p class="model-warning">{{ model_warning }}</p>
+      {% endif %}
 
       <section class="image-panel">
         <div class="panel-head">

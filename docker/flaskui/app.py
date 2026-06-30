@@ -15,6 +15,9 @@ FASTAPI_URL = os.getenv("FASTAPI_URL", "http://fastapi-bridge:8080")
 REFERENCE_DIR = Path(os.getenv("REFERENCE_PHOTOS_DIR", "/data/reference_photos"))
 IMAGES_DIR = Path(os.getenv("IMAGES_DIR", "/data/images"))
 DEFAULT_USER_ID = os.getenv("UI_USER_ID", "local-user")
+DEFAULT_CHAT_MODEL = os.getenv("OLLAMA_DEFAULT_TEXT_MODEL", "qwen2.5:14b")
+FALLBACK_CHAT_MODEL = os.getenv("OLLAMA_FALLBACK_TEXT_MODEL", "llama3.1:8b")
+EXTRA_CHAT_MODELS = [m.strip() for m in os.getenv("OLLAMA_EXTRA_MODELS", "").split(",") if m.strip()]
 
 
 
@@ -197,6 +200,7 @@ def index():
     image_status = None
     available_models: list[str] = []
     selected_model = session.get("chat_model")
+    model_warning = None
 
     try:
         model_payload = api_get("/models/ollama")
@@ -204,7 +208,20 @@ def index():
         if not selected_model:
             selected_model = model_payload.get("default")
     except requests.RequestException:
-        available_models = []
+        model_warning = "Kunde inte hämta modellistan från backend. Visar lokal fallback-lista."
+
+    fallback_models = [DEFAULT_CHAT_MODEL, FALLBACK_CHAT_MODEL, *EXTRA_CHAT_MODELS]
+    if selected_model:
+        fallback_models.append(selected_model)
+
+    merged_models: list[str] = []
+    for model_name in [*available_models, *fallback_models]:
+        if model_name and model_name not in merged_models:
+            merged_models.append(model_name)
+
+    available_models = merged_models
+    if not selected_model and available_models:
+        selected_model = available_models[0]
     if active_id:
         try:
             active_profile = api_get(f"/characters/{active_id}")
@@ -225,6 +242,7 @@ def index():
         image_status=image_status,
         available_models=available_models,
         selected_model=selected_model,
+        model_warning=model_warning,
     )
 
 

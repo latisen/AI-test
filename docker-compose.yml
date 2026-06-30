@@ -114,6 +114,9 @@ services:
       - FASTAPI_URL=http://fastapi-bridge:8080
       - REFERENCE_PHOTOS_DIR=/data/reference_photos
       - IMAGES_DIR=/data/images
+      - OLLAMA_DEFAULT_TEXT_MODEL=${OLLAMA_DEFAULT_TEXT_MODEL:-qwen2.5:14b}
+      - OLLAMA_FALLBACK_TEXT_MODEL=${OLLAMA_FALLBACK_TEXT_MODEL:-llama3.1:8b}
+      - OLLAMA_EXTRA_MODELS=${OLLAMA_EXTRA_MODELS:-}
     ports:
       - "${COMPANION_UI_PORT:-5050}:5000"
     volumes:

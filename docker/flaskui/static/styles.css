@@ -218,6 +218,12 @@ main {
   gap: 0.55rem;
 }
 
+.model-warning {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  color: #ff9bc9;
+}
+
 .image-panel {
   margin-top: 1rem;
   padding: 0.9rem;
