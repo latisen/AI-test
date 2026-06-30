@@ -15,6 +15,7 @@ class Settings:
     ollama_default_model: str = os.getenv("OLLAMA_DEFAULT_TEXT_MODEL", "qwen2.5:14b")
     ollama_fallback_model: str = os.getenv("OLLAMA_FALLBACK_TEXT_MODEL", "llama3.1:8b")
     embedding_model: str = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
+    ollama_chat_timeout_seconds: int = int(os.getenv("OLLAMA_CHAT_TIMEOUT_SECONDS", "600"))
 
     qdrant_url: str = os.getenv("QDRANT_URL", "http://qdrant:6333")
     qdrant_collection: str = os.getenv("QDRANT_COLLECTION", "companion_memories")

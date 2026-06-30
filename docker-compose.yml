@@ -83,6 +83,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_CHAT_TIMEOUT_SECONDS=${OLLAMA_CHAT_TIMEOUT_SECONDS:-600}
       - QDRANT_URL=http://qdrant:6333
       - COMFYUI_URL=http://comfyui:8188
     depends_on:

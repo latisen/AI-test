@@ -72,6 +72,7 @@ C:\AICompanion\
 - Open WebUI container (`open-webui` service).
 - Companion management UI container (`companion-ui` service) for creating/listing companions, uploading reference photos, and chatting via the bridge.
 	- Includes an image generator panel for structured prompts (scene, outfit, style, hair, body build, camera settings, workflow, seed, negative prompt).
+	- Includes tabbed main workspace (`Chat`, `Galleri`, `Bildgenerering`, `Settings`) and streamed chat responses in the chat view.
 
 ### LLM Backend
 

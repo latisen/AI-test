@@ -34,171 +34,219 @@
         <p>{{ active_profile.personality }}</p>
       </header>
 
-      <div class="meta-grid">
-        <div><span>Ålder</span><strong>{{ active_profile.age }}</strong></div>
-        <div><span>Intressen</span><strong>{{ active_profile.interests | join(', ') }}</strong></div>
+      <div class="tabs" role="tablist">
+        <button class="tab is-active" data-tab="chat" type="button">Chat</button>
+        <button class="tab" data-tab="gallery" type="button">Galleri</button>
+        <button class="tab" data-tab="image" type="button">Bildgenerering</button>
+        <button class="tab" data-tab="settings" type="button">Settings</button>
       </div>
 
-      <section class="chat-log" id="chat-log">
-        {% for item in chat_history %}
-          <article class="msg msg-{{ item.role }}">
-            <p>{{ item.content }}</p>
-          </article>
-        {% else %}
-          <article class="msg msg-system">
-            <p>Starta konversationen med {{ active_profile.name }}.</p>
-          </article>
-        {% endfor %}
-      </section>
-
-      <form class="chat-form" method="post" action="{{ url_for('chat', character_id=active_id) }}">
-        <select name="model">
-          {% if available_models %}
-            {% for model_name in available_models %}
-              <option value="{{ model_name }}" {% if selected_model == model_name %}selected{% endif %}>{{ model_name }}</option>
-            {% endfor %}
-          {% else %}
-            <option value="">(kunde inte ladda modeller)</option>
-          {% endif %}
-        </select>
-        <input type="text" name="custom_model" value="{{ selected_model or '' }}" placeholder="Egen modell, ex leeplenty/lumimaid-v0.2:12b">
-        <input type="text" name="message" placeholder="Skriv ett meddelande..." required>
-        <button type="submit">Skicka</button>
-      </form>
-      {% if model_warning %}
-        <p class="model-warning">{{ model_warning }}</p>
-      {% endif %}
-
-      <section class="image-panel">
-        <div class="panel-head">
-          <h3>Bildgenerator</h3>
-          <p>Bygg en tydlig prompt med utseende, stil och scen.</p>
+      <section class="tab-panel is-active" data-panel="chat">
+        <div class="meta-grid">
+          <div><span>Ålder</span><strong>{{ active_profile.age }}</strong></div>
+          <div><span>Intressen</span><strong>{{ active_profile.interests | join(', ') }}</strong></div>
         </div>
 
-        {% if last_image %}
-          <div class="last-image">
-            <strong>Senaste jobb:</strong>
-            <span>prompt_id: {{ last_image.prompt_id }}</span>
-            <span>workflow: {{ last_image.workflow }}</span>
-            <span>{{ last_image.output_hint }}</span>
-            {% if image_status %}
-              <span>Status: {{ image_status.state }}</span>
+        <section class="chat-log" id="chat-log" data-character-id="{{ active_id }}">
+          {% for item in chat_history %}
+            <article class="msg msg-{{ item.role }}">
+              <p>{{ item.content }}</p>
+            </article>
+          {% else %}
+            <article class="msg msg-system">
+              <p>Starta konversationen med {{ active_profile.name }}.</p>
+            </article>
+          {% endfor %}
+        </section>
+
+        <form class="chat-form" id="chat-form" method="post" action="{{ url_for('chat', character_id=active_id) }}">
+          <select name="model" id="chat-model-select">
+            {% if available_models %}
+              {% for model_name in available_models %}
+                <option value="{{ model_name }}" {% if selected_model == model_name %}selected{% endif %}>{{ model_name }}</option>
+              {% endfor %}
+            {% else %}
+              <option value="">(kunde inte ladda modeller)</option>
             {% endif %}
-          </div>
-        {% endif %}
-
-        {% if image_status and image_status.images %}
-          <div class="generated-grid">
-            {% for image in image_status.images %}
-              {% set relpath = image.filename if not image.subfolder else image.subfolder ~ '/' ~ image.filename %}
-              <a href="{{ url_for('generated_image', filename=relpath) }}" target="_blank" class="generated-item">
-                <img src="{{ url_for('generated_image', filename=relpath) }}" alt="Generated image">
-              </a>
-            {% endfor %}
-          </div>
-        {% endif %}
-
-        <form class="image-form" method="post" action="{{ url_for('generate_image', character_id=active_id) }}">
-          <div class="field-grid">
-            <label>Scen
-              <input type="text" name="scene" placeholder="ex. neon lounge, city night skyline">
-            </label>
-            <label>Pose
-              <input type="text" name="pose" placeholder="ex. standing, leaning on balcony rail">
-            </label>
-            <label>Outfit
-              <input type="text" name="outfit" placeholder="ex. black satin dress, silver accessories">
-            </label>
-            <label>Stämning
-              <input type="text" name="mood" placeholder="ex. confident, seductive, mysterious">
-            </label>
-            <label>Belysning
-              <input type="text" name="lighting" placeholder="ex. soft rim light, pink neon glow">
-            </label>
-            <label>Bildstil
-              <input type="text" name="style" placeholder="ex. cinematic photo, ultra-detailed">
-            </label>
-            <label>Kameravinkel
-              <input type="text" name="camera_angle" placeholder="ex. eye level, slight low angle">
-            </label>
-            <label>Bildutsnitt
-              <input type="text" name="framing" placeholder="ex. waist-up portrait, full body">
-            </label>
-            <label>Hårfärg
-              <input type="text" name="hair_color" placeholder="ex. platinum blonde, raven black">
-            </label>
-            <label>Hårlängd
-              <select name="hair_length">
-                <option value="">Välj</option>
-                <option value="very short">Very short</option>
-                <option value="short">Short</option>
-                <option value="medium">Medium</option>
-                <option value="long">Long</option>
-                <option value="very long">Very long</option>
-              </select>
-            </label>
-            <label>Hårstruktur
-              <select name="hair_texture">
-                <option value="">Välj</option>
-                <option value="straight">Straight</option>
-                <option value="wavy">Wavy</option>
-                <option value="curly">Curly</option>
-                <option value="coily">Coily</option>
-              </select>
-            </label>
-            <label>Kroppsform
-              <select name="body_type">
-                <option value="">Välj</option>
-                <option value="petite">Petite</option>
-                <option value="slim">Slim</option>
-                <option value="athletic">Athletic</option>
-                <option value="curvy">Curvy</option>
-                <option value="plus-size">Plus-size</option>
-              </select>
-            </label>
-            <label>Längdprofil
-              <select name="height_type">
-                <option value="">Välj</option>
-                <option value="short">Short</option>
-                <option value="average">Average</option>
-                <option value="tall">Tall</option>
-              </select>
-            </label>
-            <label>Workflow
-              <input type="text" name="workflow" value="sdxl_character.json">
-            </label>
-            <label>Checkpoint
-              <input type="text" name="checkpoint" value="sd_xl_base_1.0.safetensors" placeholder="ex. juggernautXL_v9.safetensors">
-            </label>
-            <label>Seed (valfritt)
-              <input type="number" name="seed" placeholder="Lämna tom för random">
-            </label>
-            <label>Bredd
-              <input type="number" name="width" value="1024" min="256" step="64">
-            </label>
-            <label>Höjd
-              <input type="number" name="height" value="1024" min="256" step="64">
-            </label>
-            <label>Steps
-              <input type="number" name="steps" value="30" min="10" max="80">
-            </label>
-            <label>CFG
-              <input type="number" name="cfg" value="4.5" min="1" max="20" step="0.1">
-            </label>
-          </div>
-
-          <label>Extra detaljer
-            <textarea name="extra_details" rows="2" placeholder="Ex: glossy lips, fine skin texture, wind in hair"></textarea>
-          </label>
-
-          <label>Negative prompt
-            <textarea name="negative_prompt" rows="2" placeholder="low quality, blurry, deformed, extra limbs"></textarea>
-          </label>
-
-          <div class="form-actions">
-            <button type="submit">Generera Bild</button>
-          </div>
+          </select>
+          <input type="text" name="custom_model" id="chat-custom-model" value="{{ selected_model or '' }}" placeholder="Egen modell, ex leeplenty/lumimaid-v0.2:12b">
+          <input type="text" name="message" id="chat-message" placeholder="Skriv ett meddelande..." required>
+          <button type="submit" id="chat-send-btn">Skicka</button>
         </form>
+        {% if model_warning %}
+          <p class="model-warning">{{ model_warning }}</p>
+        {% endif %}
+      </section>
+
+      <section class="tab-panel" data-panel="gallery">
+        <div class="panel-head">
+          <h3>Galleri</h3>
+          <p>Senast genererade bilder.</p>
+        </div>
+        <div class="generated-grid generated-grid-large">
+          {% for image in recent_images %}
+            <a href="{{ url_for('generated_image', filename=image.relpath) }}" target="_blank" class="generated-item">
+              <img src="{{ url_for('generated_image', filename=image.relpath) }}" alt="{{ image.filename }}">
+            </a>
+          {% else %}
+            <p class="empty">Inga bilder hittades ännu i output-mappen.</p>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="image">
+        <section class="image-panel">
+          <div class="panel-head">
+            <h3>Bildgenerator</h3>
+            <p>Bygg en tydlig prompt med utseende, stil och scen.</p>
+          </div>
+
+          {% if last_image %}
+            <div class="last-image">
+              <strong>Senaste jobb:</strong>
+              <span>prompt_id: {{ last_image.prompt_id }}</span>
+              <span>workflow: {{ last_image.workflow }}</span>
+              <span>{{ last_image.output_hint }}</span>
+              {% if image_status %}
+                <span>Status: {{ image_status.state }}</span>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if image_status and image_status.images %}
+            <div class="generated-grid">
+              {% for image in image_status.images %}
+                {% set relpath = image.filename if not image.subfolder else image.subfolder ~ '/' ~ image.filename %}
+                <a href="{{ url_for('generated_image', filename=relpath) }}" target="_blank" class="generated-item">
+                  <img src="{{ url_for('generated_image', filename=relpath) }}" alt="Generated image">
+                </a>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <form class="image-form" method="post" action="{{ url_for('generate_image', character_id=active_id) }}">
+            <div class="field-grid">
+              <label>Scen
+                <input type="text" name="scene" placeholder="ex. neon lounge, city night skyline">
+              </label>
+              <label>Pose
+                <input type="text" name="pose" placeholder="ex. standing, leaning on balcony rail">
+              </label>
+              <label>Outfit
+                <input type="text" name="outfit" placeholder="ex. black satin dress, silver accessories">
+              </label>
+              <label>Stämning
+                <input type="text" name="mood" placeholder="ex. confident, seductive, mysterious">
+              </label>
+              <label>Belysning
+                <input type="text" name="lighting" placeholder="ex. soft rim light, pink neon glow">
+              </label>
+              <label>Bildstil
+                <input type="text" name="style" placeholder="ex. cinematic photo, ultra-detailed">
+              </label>
+              <label>Kameravinkel
+                <input type="text" name="camera_angle" placeholder="ex. eye level, slight low angle">
+              </label>
+              <label>Bildutsnitt
+                <input type="text" name="framing" placeholder="ex. waist-up portrait, full body">
+              </label>
+              <label>Hårfärg
+                <input type="text" name="hair_color" placeholder="ex. platinum blonde, raven black">
+              </label>
+              <label>Hårlängd
+                <select name="hair_length">
+                  <option value="">Välj</option>
+                  <option value="very short">Very short</option>
+                  <option value="short">Short</option>
+                  <option value="medium">Medium</option>
+                  <option value="long">Long</option>
+                  <option value="very long">Very long</option>
+                </select>
+              </label>
+              <label>Hårstruktur
+                <select name="hair_texture">
+                  <option value="">Välj</option>
+                  <option value="straight">Straight</option>
+                  <option value="wavy">Wavy</option>
+                  <option value="curly">Curly</option>
+                  <option value="coily">Coily</option>
+                </select>
+              </label>
+              <label>Kroppsform
+                <select name="body_type">
+                  <option value="">Välj</option>
+                  <option value="petite">Petite</option>
+                  <option value="slim">Slim</option>
+                  <option value="athletic">Athletic</option>
+                  <option value="curvy">Curvy</option>
+                  <option value="plus-size">Plus-size</option>
+                </select>
+              </label>
+              <label>Längdprofil
+                <select name="height_type">
+                  <option value="">Välj</option>
+                  <option value="short">Short</option>
+                  <option value="average">Average</option>
+                  <option value="tall">Tall</option>
+                </select>
+              </label>
+              <label>Workflow
+                <input type="text" name="workflow" value="sdxl_character.json">
+              </label>
+              <label>Checkpoint
+                <input type="text" name="checkpoint" value="sd_xl_base_1.0.safetensors" placeholder="ex. juggernautXL_v9.safetensors">
+              </label>
+              <label>Seed (valfritt)
+                <input type="number" name="seed" placeholder="Lämna tom för random">
+              </label>
+              <label>Bredd
+                <input type="number" name="width" value="1024" min="256" step="64">
+              </label>
+              <label>Höjd
+                <input type="number" name="height" value="1024" min="256" step="64">
+              </label>
+              <label>Steps
+                <input type="number" name="steps" value="30" min="10" max="80">
+              </label>
+              <label>CFG
+                <input type="number" name="cfg" value="4.5" min="1" max="20" step="0.1">
+              </label>
+            </div>
+
+            <label>Extra detaljer
+              <textarea name="extra_details" rows="2" placeholder="Ex: glossy lips, fine skin texture, wind in hair"></textarea>
+            </label>
+
+            <label>Negative prompt
+              <textarea name="negative_prompt" rows="2" placeholder="low quality, blurry, deformed, extra limbs"></textarea>
+            </label>
+
+            <div class="form-actions">
+              <button type="submit">Generera Bild</button>
+            </div>
+          </form>
+        </section>
+      </section>
+
+      <section class="tab-panel" data-panel="settings">
+        <div class="settings-grid">
+          <div class="settings-card">
+            <span>Aktiv modell</span>
+            <strong id="settings-model">{{ selected_model or 'n/a' }}</strong>
+          </div>
+          <div class="settings-card">
+            <span>Companion</span>
+            <strong>{{ active_profile.name }}</strong>
+          </div>
+          <div class="settings-card">
+            <span>Referensbilder</span>
+            <strong>{{ recent_images | length }}</strong>
+          </div>
+          <div class="settings-card">
+            <span>Säkerhetsläge</span>
+            <strong>Adults only</strong>
+          </div>
+        </div>
       </section>
     {% else %}
       <div class="empty-state">
@@ -208,4 +256,13 @@
     {% endif %}
   </section>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.companionConfig = {
+    characterId: "{{ active_id or '' }}"
+  };
+</script>
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
 {% endblock %}

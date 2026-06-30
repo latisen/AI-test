@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
 from app.config import settings
 from app.models.schemas import (
@@ -66,6 +67,15 @@ def get_memory_manager(ollama: OllamaClient = Depends(get_ollama_client)) -> Mem
 
 def get_comfyui_client() -> ComfyUIClient:
     return ComfyUIClient(settings.comfyui_url, settings.workflows_dir, settings.images_dir, settings.models_dir)
+
+
+def build_chat_messages(character: CharacterProfile, memory_hits: list[str], request: ChatRequest) -> list[dict[str, str]]:
+    system_prompt = build_system_prompt(character, memory_hits)
+    messages = [{"role": "system", "content": system_prompt}]
+    if request.history:
+        messages.extend(request.history[-settings.summary_window :])
+    messages.append({"role": "user", "content": request.message})
+    return messages
 
 
 @router.get("/health")
@@ -221,11 +231,7 @@ async def chat(
             memory_hits=memory_hits,
         )
 
-    system_prompt = build_system_prompt(character, memory_hits)
-    messages = [{"role": "system", "content": system_prompt}]
-    if request.history:
-        messages.extend(request.history[-settings.summary_window :])
-    messages.append({"role": "user", "content": request.message})
+    messages = build_chat_messages(character, memory_hits, request)
 
     model = request.model or settings.ollama_default_model
     primary_error: Exception | None = None
@@ -259,6 +265,50 @@ async def chat(
         pass
 
     return ChatResponse(response_type="text", text=assistant_reply, memory_hits=memory_hits)
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    request: ChatRequest,
+    cm: CharacterManager = Depends(get_character_manager),
+    mm: MemoryManager = Depends(get_memory_manager),
+    ollama: OllamaClient = Depends(get_ollama_client),
+) -> StreamingResponse:
+    try:
+        assert_safe_text(request.message)
+        character = cm.load_character(request.character_id)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        memory_hits = await mm.retrieve_relevant_memories(
+            user_id=request.user_id,
+            character_id=request.character_id,
+            query_text=request.message,
+            top_k=settings.retrieval_top_k,
+        )
+    except Exception:
+        memory_hits = []
+
+    messages = build_chat_messages(character, memory_hits, request)
+    model = request.model or settings.ollama_default_model
+
+    async def event_stream():
+        chunks: list[str] = []
+        try:
+            async for chunk in ollama.chat_stream(model, messages):
+                chunks.append(chunk)
+                yield chunk
+        finally:
+            text = "".join(chunks).strip()
+            if text:
+                try:
+                    await mm.write_memory(request.user_id, request.character_id, "user", request.message)
+                    await mm.write_memory(request.user_id, request.character_id, "assistant", text)
+                except Exception:
+                    pass
+
+    return StreamingResponse(event_stream(), media_type="text/plain; charset=utf-8")
 
 
 @router.post("/images", response_model=ImageGenerationResponse)

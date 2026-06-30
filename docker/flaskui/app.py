@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from flask import Flask, abort, flash, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, Response, abort, flash, redirect, render_template, request, send_from_directory, session, url_for
 from slugify import slugify
 
 app = Flask(__name__)
@@ -187,6 +187,24 @@ def build_image_prompt_from_form(form: dict[str, str]) -> str:
     return ", ".join(tokens)
 
 
+def list_recent_generated_images(limit: int = 30) -> list[dict[str, str]]:
+    if not IMAGES_DIR.exists():
+        return []
+
+    files = [
+        p
+        for p in IMAGES_DIR.rglob("*")
+        if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+    ]
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    images: list[dict[str, str]] = []
+    for item in files[:limit]:
+        rel = item.relative_to(IMAGES_DIR).as_posix()
+        images.append({"filename": item.name, "relpath": rel})
+    return images
+
+
 
 @app.route("/")
 def index():
@@ -202,6 +220,7 @@ def index():
     available_models: list[str] = []
     selected_model = session.get("chat_model")
     model_warning = None
+    recent_images = list_recent_generated_images()
 
     try:
         model_payload = api_get("/models/ollama")
@@ -241,6 +260,7 @@ def index():
         chat_history=chat_history,
         last_image=last_image,
         image_status=image_status,
+        recent_images=recent_images,
         available_models=available_models,
         selected_model=selected_model,
         model_warning=model_warning,
@@ -353,6 +373,65 @@ def static_avatar(character_id: str, filename: str):
 @app.route("/media/generated/<path:filename>")
 def generated_image(filename: str):
     return send_from_directory(IMAGES_DIR, filename)
+
+
+@app.route("/api/chat/stream/<character_id>", methods=["POST"])
+def chat_stream_proxy(character_id: str):
+    payload_in = request.get_json(silent=True) or {}
+    message = _clean(payload_in.get("message"))
+    if not message:
+        return Response("Message is required.", status=400, mimetype="text/plain")
+
+    model = _clean(payload_in.get("model")) or session.get("chat_model") or DEFAULT_CHAT_MODEL
+    if model:
+        session["chat_model"] = model
+
+    history_key = f"chat::{character_id}"
+    history = session.get(history_key, [])
+    payload = {
+        "user_id": DEFAULT_USER_ID,
+        "character_id": character_id,
+        "message": message,
+        "history": history,
+        "model": model,
+    }
+
+    def generate():
+        try:
+            with requests.post(
+                f"{FASTAPI_URL}/chat/stream",
+                json=payload,
+                stream=True,
+                timeout=(15, CHAT_TIMEOUT_SECONDS),
+            ) as resp:
+                if resp.status_code >= 400:
+                    text = resp.text.strip() or "stream request failed"
+                    yield f"[ERROR] {text}"
+                    return
+                for chunk in resp.iter_content(chunk_size=1024, decode_unicode=True):
+                    if chunk:
+                        yield chunk
+        except requests.RequestException as exc:
+            yield f"[ERROR] {exc}"
+
+    return Response(generate(), mimetype="text/plain; charset=utf-8")
+
+
+@app.route("/api/chat/store/<character_id>", methods=["POST"])
+def chat_store(character_id: str):
+    payload = request.get_json(silent=True) or {}
+    user_text = _clean(payload.get("user"))
+    assistant_text = _clean(payload.get("assistant"))
+    if not user_text:
+        return {"status": "ignored"}, 200
+
+    history_key = f"chat::{character_id}"
+    history = session.get(history_key, [])
+    history.append({"role": "user", "content": user_text})
+    if assistant_text:
+        history.append({"role": "assistant", "content": assistant_text})
+    session[history_key] = history[-30:]
+    return {"status": "ok"}, 200
 
 
 if __name__ == "__main__":
