@@ -54,13 +54,18 @@ services:
     environment:
       - CLI_ARGS=--listen 0.0.0.0 --port 8188
     command: >-
-      bash -lc "python3 -m pip install --no-cache-dir blake3 || true; MAIN_PY=''; if [ -f /root/ComfyUI/main.py ]; then MAIN_PY='/root/ComfyUI/main.py'; fi; if [ -z \"$$MAIN_PY\" ] && [ -f /workspace/ComfyUI/main.py ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi; if [ -z \"$$MAIN_PY\" ]; then MAIN_PY='/root/ComfyUI/main.py'; fi; python3 -c \"import re; from pathlib import Path; pkg_stub='__all__ = []\\n'; mod_stub='def _noop(*args, **kwargs):\\n    return None\\n\\ndef init(*args, **kwargs):\\n    return None\\n\\ndef __getattr__(name):\\n    return _noop\\n'; bases=['/root/ComfyUI','/workspace/ComfyUI','/opt/comfy_patches']; scan_roots=[Path('/root/ComfyUI'), Path('/workspace/ComfyUI')]; refs=set(['control']); pattern=re.compile(r'comfy_aimdo\\.([A-Za-z_][A-Za-z0-9_]*)'); [refs.update(pattern.findall(f.read_text(encoding='utf-8', errors='ignore'))) for r in scan_roots if r.exists() for f in r.rglob('*.py')]; [((Path(b)/'comfy_aimdo').mkdir(parents=True, exist_ok=True), (Path(b)/'comfy_aimdo'/'__init__.py').write_text(pkg_stub, encoding='utf-8'), [(Path(b)/'comfy_aimdo'/f'{m}.py').write_text(mod_stub, encoding='utf-8') for m in refs]) for b in bases]\"; export PYTHONPATH=/opt/comfy_patches:$$PYTHONPATH; exec python3 \"$$MAIN_PY\" --listen 0.0.0.0 --port 8188"
+      bash -lc "python3 -m pip install --no-cache-dir blake3 || true; MAIN_PY=''; if [ -f /workspace/ComfyUI/main.py ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi; if [ -z \"$$MAIN_PY\" ] && [ -f /root/ComfyUI/main.py ]; then MAIN_PY='/root/ComfyUI/main.py'; fi; if [ -z \"$$MAIN_PY\" ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi; python3 -c \"import re; from pathlib import Path; pkg_stub='__all__ = []\\n'; mod_stub='def _noop(*args, **kwargs):\\n    return None\\n\\ndef init(*args, **kwargs):\\n    return None\\n\\ndef __getattr__(name):\\n    return _noop\\n'; bases=['/root/ComfyUI','/workspace/ComfyUI','/opt/comfy_patches']; scan_roots=[Path('/root/ComfyUI'), Path('/workspace/ComfyUI')]; refs=set(['control']); pattern=re.compile(r'comfy_aimdo\\.([A-Za-z_][A-Za-z0-9_]*)'); [refs.update(pattern.findall(f.read_text(encoding='utf-8', errors='ignore'))) for r in scan_roots if r.exists() for f in r.rglob('*.py')]; [((Path(b)/'comfy_aimdo').mkdir(parents=True, exist_ok=True), (Path(b)/'comfy_aimdo'/'__init__.py').write_text(pkg_stub, encoding='utf-8'), [(Path(b)/'comfy_aimdo'/f'{m}.py').write_text(mod_stub, encoding='utf-8') for m in refs]) for b in bases]\"; export PYTHONPATH=/opt/comfy_patches:$$PYTHONPATH; exec python3 \"$$MAIN_PY\" --listen 0.0.0.0 --port 8188"
     volumes:
       - ./models:/workspace/ComfyUI/models
+      - ./models:/root/ComfyUI/models
       - ./loras:/workspace/ComfyUI/models/loras
+      - ./loras:/root/ComfyUI/models/loras
       - ./workflows:/workspace/ComfyUI/user/default/workflows
+      - ./workflows:/root/ComfyUI/user/default/workflows
       - ./images:/workspace/ComfyUI/output
+      - ./images:/root/ComfyUI/output
       - ./reference_photos:/workspace/ComfyUI/input
+      - ./reference_photos:/root/ComfyUI/input
     deploy:
       resources:
         reservations:
