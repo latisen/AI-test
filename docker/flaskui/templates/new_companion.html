@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="form-wrap glass">
+  <h2>Skapa Ny Companion</h2>
+  <p>Fyll i personlighet, intressen och ladda upp en referensbild som kan användas som profilbild och bildgenerering.</p>
+
+  <form method="post" enctype="multipart/form-data" class="companion-form">
+    <label>Namn
+      <input type="text" name="name" required>
+    </label>
+
+    <label>Ålder (18+)
+      <input type="number" name="age" min="18" value="25" required>
+    </label>
+
+    <label>Nationalitet
+      <input type="text" name="nationality" placeholder="Ex: Svensk">
+    </label>
+
+    <label>Personlighet
+      <textarea name="personality" rows="2" placeholder="Ex: Självsäker, varm, lekfull"></textarea>
+    </label>
+
+    <label>Intressen (kommaseparerade)
+      <input type="text" name="interests" placeholder="musik, träning, film">
+    </label>
+
+    <label>Utseende
+      <textarea name="appearance_description" rows="2" placeholder="Ansikte, hår, stil, kroppsform"></textarea>
+    </label>
+
+    <label>Biografi
+      <textarea name="biography" rows="3" placeholder="Kort bakgrund"></textarea>
+    </label>
+
+    <label>Talstil
+      <input type="text" name="speech_style" placeholder="Ex: Flirtig men respektfull">
+    </label>
+
+    <label>Relationshistorik
+      <textarea name="relationship_history" rows="2"></textarea>
+    </label>
+
+    <label>Profilbild / Referensbild
+      <input type="file" name="avatar" accept="image/*">
+    </label>
+
+    <div class="form-actions">
+      <a href="{{ url_for('index') }}" class="btn-ghost">Avbryt</a>
+      <button type="submit" class="btn-primary">Skapa Companion</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

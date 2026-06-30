@@ -35,6 +35,7 @@ Guardrails are enforced in the bridge service (`safety.py`) and reflected in def
 After install/startup:
 
 - Open WebUI: http://localhost:3000
+- Companion UI (Flask): http://localhost:5050
 - ComfyUI: http://localhost:8188
 - Qdrant: http://localhost:6333
 - FastAPI: http://localhost:8080 (docs: http://localhost:8080/docs)
@@ -69,6 +70,8 @@ C:\AICompanion\
 ### Frontend
 
 - Open WebUI container (`open-webui` service).
+- Companion management UI container (`companion-ui` service) for creating/listing companions, uploading reference photos, and chatting via the bridge.
+	- Includes an image generator panel for structured prompts (scene, outfit, style, hair, body build, camera settings, workflow, seed, negative prompt).
 
 ### LLM Backend
 

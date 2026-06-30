@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="layout">
+  <aside class="sidebar glass">
+    <div class="sidebar-head">
+      <h2>Companions</h2>
+    </div>
+    <ul class="companion-list">
+      {% for companion in companions %}
+        <li class="companion-item {% if active_id == companion.character_id %}active{% endif %}">
+          <a href="{{ url_for('index', character_id=companion.character_id) }}">
+            {% if companion.avatar_url %}
+              <img src="{{ companion.avatar_url }}" alt="{{ companion.name }}">
+            {% else %}
+              <div class="avatar-fallback">{{ companion.name[0] }}</div>
+            {% endif %}
+            <div>
+              <strong>{{ companion.name }}</strong>
+              <p>{{ companion.age }} år</p>
+            </div>
+          </a>
+        </li>
+      {% else %}
+        <li class="empty">Inga companions ännu. Skapa din första.</li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <section class="chat-panel glass">
+    {% if active_profile %}
+      <header class="profile-header">
+        <h2>{{ active_profile.name }}</h2>
+        <p>{{ active_profile.personality }}</p>
+      </header>
+
+      <div class="meta-grid">
+        <div><span>Ålder</span><strong>{{ active_profile.age }}</strong></div>
+        <div><span>Intressen</span><strong>{{ active_profile.interests | join(', ') }}</strong></div>
+      </div>
+
+      <section class="chat-log" id="chat-log">
+        {% for item in chat_history %}
+          <article class="msg msg-{{ item.role }}">
+            <p>{{ item.content }}</p>
+          </article>
+        {% else %}
+          <article class="msg msg-system">
+            <p>Starta konversationen med {{ active_profile.name }}.</p>
+          </article>
+        {% endfor %}
+      </section>
+
+      <form class="chat-form" method="post" action="{{ url_for('chat', character_id=active_id) }}">
+        <input type="text" name="message" placeholder="Skriv ett meddelande..." required>
+        <button type="submit">Skicka</button>
+      </form>
+
+      <section class="image-panel">
+        <div class="panel-head">
+          <h3>Bildgenerator</h3>
+          <p>Bygg en tydlig prompt med utseende, stil och scen.</p>
+        </div>
+
+        {% if last_image %}
+          <div class="last-image">
+            <strong>Senaste jobb:</strong>
+            <span>prompt_id: {{ last_image.prompt_id }}</span>
+            <span>workflow: {{ last_image.workflow }}</span>
+            <span>{{ last_image.output_hint }}</span>
+          </div>
+        {% endif %}
+
+        <form class="image-form" method="post" action="{{ url_for('generate_image', character_id=active_id) }}">
+          <div class="field-grid">
+            <label>Scen
+              <input type="text" name="scene" placeholder="ex. neon lounge, city night skyline">
+            </label>
+            <label>Pose
+              <input type="text" name="pose" placeholder="ex. standing, leaning on balcony rail">
+            </label>
+            <label>Outfit
+              <input type="text" name="outfit" placeholder="ex. black satin dress, silver accessories">
+            </label>
+            <label>Stämning
+              <input type="text" name="mood" placeholder="ex. confident, seductive, mysterious">
+            </label>
+            <label>Belysning
+              <input type="text" name="lighting" placeholder="ex. soft rim light, pink neon glow">
+            </label>
+            <label>Bildstil
+              <input type="text" name="style" placeholder="ex. cinematic photo, ultra-detailed">
+            </label>
+            <label>Kameravinkel
+              <input type="text" name="camera_angle" placeholder="ex. eye level, slight low angle">
+            </label>
+            <label>Bildutsnitt
+              <input type="text" name="framing" placeholder="ex. waist-up portrait, full body">
+            </label>
+            <label>Hårfärg
+              <input type="text" name="hair_color" placeholder="ex. platinum blonde, raven black">
+            </label>
+            <label>Hårlängd
+              <select name="hair_length">
+                <option value="">Välj</option>
+                <option value="very short">Very short</option>
+                <option value="short">Short</option>
+                <option value="medium">Medium</option>
+                <option value="long">Long</option>
+                <option value="very long">Very long</option>
+              </select>
+            </label>
+            <label>Hårstruktur
+              <select name="hair_texture">
+                <option value="">Välj</option>
+                <option value="straight">Straight</option>
+                <option value="wavy">Wavy</option>
+                <option value="curly">Curly</option>
+                <option value="coily">Coily</option>
+              </select>
+            </label>
+            <label>Kroppsform
+              <select name="body_type">
+                <option value="">Välj</option>
+                <option value="petite">Petite</option>
+                <option value="slim">Slim</option>
+                <option value="athletic">Athletic</option>
+                <option value="curvy">Curvy</option>
+                <option value="plus-size">Plus-size</option>
+              </select>
+            </label>
+            <label>Längdprofil
+              <select name="height_type">
+                <option value="">Välj</option>
+                <option value="short">Short</option>
+                <option value="average">Average</option>
+                <option value="tall">Tall</option>
+              </select>
+            </label>
+            <label>Workflow
+              <input type="text" name="workflow" value="sdxl_character.json">
+            </label>
+            <label>Seed (valfritt)
+              <input type="number" name="seed" placeholder="Lämna tom för random">
+            </label>
+            <label>Bredd
+              <input type="number" name="width" value="1024" min="256" step="64">
+            </label>
+            <label>Höjd
+              <input type="number" name="height" value="1024" min="256" step="64">
+            </label>
+            <label>Steps
+              <input type="number" name="steps" value="30" min="10" max="80">
+            </label>
+            <label>CFG
+              <input type="number" name="cfg" value="4.5" min="1" max="20" step="0.1">
+            </label>
+          </div>
+
+          <label>Extra detaljer
+            <textarea name="extra_details" rows="2" placeholder="Ex: glossy lips, fine skin texture, wind in hair"></textarea>
+          </label>
+
+          <label>Negative prompt
+            <textarea name="negative_prompt" rows="2" placeholder="low quality, blurry, deformed, extra limbs"></textarea>
+          </label>
+
+          <div class="form-actions">
+            <button type="submit">Generera Bild</button>
+          </div>
+        </form>
+      </section>
+    {% else %}
+      <div class="empty-state">
+        <h2>Inga companions valda</h2>
+        <p>Skapa en ny companion för att börja chatta och bygga profilen.</p>
+      </div>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

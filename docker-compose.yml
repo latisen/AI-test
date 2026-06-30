@@ -101,6 +101,22 @@ services:
       - ./logs:/data/logs
       - ./backups:/data/backups
 
+  companion-ui:
+    build:
+      context: ./docker/flaskui
+      dockerfile: Dockerfile
+    container_name: aicompanion-companion-ui
+    restart: unless-stopped
+    depends_on:
+      - fastapi-bridge
+    environment:
+      - FASTAPI_URL=http://fastapi-bridge:8080
+      - REFERENCE_PHOTOS_DIR=/data/reference_photos
+    ports:
+      - "${COMPANION_UI_PORT:-5050}:5000"
+    volumes:
+      - ./reference_photos:/data/reference_photos
+
 networks:
   default:
     name: aicompanion-network
