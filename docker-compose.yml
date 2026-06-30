@@ -55,31 +55,8 @@ services:
       - "${COMFYUI_PORT:-8188}:8188"
     environment:
       - CLI_ARGS=--listen 0.0.0.0 --port 8188
-    command: >
-      bash -lc "
-      python3 -m pip install --no-cache-dir blake3 || true;
-      MAIN_PY='';
-      if [ -f /root/ComfyUI/main.py ]; then MAIN_PY='/root/ComfyUI/main.py'; fi;
-      if [ -z \"$$MAIN_PY\" ] && [ -f /workspace/ComfyUI/main.py ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi;
-      if [ -z \"$$MAIN_PY\" ]; then MAIN_PY='/root/ComfyUI/main.py'; fi;
-      for BASE in /root/ComfyUI /workspace/ComfyUI /opt/comfy_patches; do
-        mkdir -p \"$BASE/comfy_aimdo\";
-        printf '%s\n' '# auto-generated compatibility stub' > \"$BASE/comfy_aimdo/__init__.py\";
-        cat > \"$BASE/comfy_aimdo/control.py\" <<'PY'
-    # auto-generated compatibility stub
-    def _noop(*args, **kwargs):
-      return None
-
-    def init(*args, **kwargs):
-      return None
-
-    def __getattr__(name):
-      return _noop
-    PY
-      done
-      export PYTHONPATH=/opt/comfy_patches:$$PYTHONPATH;
-      exec python3 \"$$MAIN_PY\" --listen 0.0.0.0 --port 8188
-      "
+    command: >-
+      bash -lc "python3 -m pip install --no-cache-dir blake3 || true; MAIN_PY=''; if [ -f /root/ComfyUI/main.py ]; then MAIN_PY='/root/ComfyUI/main.py'; fi; if [ -z \"$$MAIN_PY\" ] && [ -f /workspace/ComfyUI/main.py ]; then MAIN_PY='/workspace/ComfyUI/main.py'; fi; if [ -z \"$$MAIN_PY\" ]; then MAIN_PY='/root/ComfyUI/main.py'; fi; python3 -c \"from pathlib import Path; stub='def _noop(*args, **kwargs):\\n    return None\\n\\ndef init(*args, **kwargs):\\n    return None\\n\\ndef __getattr__(name):\\n    return _noop\\n'; bases=['/root/ComfyUI','/workspace/ComfyUI','/opt/comfy_patches']; [((Path(b)/'comfy_aimdo').mkdir(parents=True, exist_ok=True), (Path(b)/'comfy_aimdo'/'__init__.py').write_text('# auto-generated compatibility stub\\n', encoding='utf-8'), (Path(b)/'comfy_aimdo'/'control.py').write_text(stub, encoding='utf-8')) for b in bases]\"; export PYTHONPATH=/opt/comfy_patches:$$PYTHONPATH; exec python3 \"$$MAIN_PY\" --listen 0.0.0.0 --port 8188"
     volumes:
       - ./models:/workspace/ComfyUI/models
       - ./loras:/workspace/ComfyUI/models/loras
