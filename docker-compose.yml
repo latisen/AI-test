@@ -113,6 +113,7 @@ services:
       - fastapi-bridge
     environment:
       - FASTAPI_URL=http://fastapi-bridge:8080
+      - OLLAMA_URL=http://ollama:11434
       - REFERENCE_PHOTOS_DIR=/data/reference_photos
       - IMAGES_DIR=/data/images
       - OLLAMA_DEFAULT_TEXT_MODEL=${OLLAMA_DEFAULT_TEXT_MODEL:-qwen2.5:14b}

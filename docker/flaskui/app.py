@@ -12,6 +12,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
 
 FASTAPI_URL = os.getenv("FASTAPI_URL", "http://fastapi-bridge:8080")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
 REFERENCE_DIR = Path(os.getenv("REFERENCE_PHOTOS_DIR", "/data/reference_photos"))
 IMAGES_DIR = Path(os.getenv("IMAGES_DIR", "/data/images"))
 DEFAULT_USER_ID = os.getenv("UI_USER_ID", "local-user")
@@ -54,6 +55,104 @@ def api_post_file(path: str, file_storage) -> dict[str, Any]:
     response = requests.post(f"{FASTAPI_URL}{path}", files=files, timeout=60)
     response.raise_for_status()
     return response.json()
+
+
+def ollama_get(path: str) -> dict[str, Any]:
+    response = requests.get(f"{OLLAMA_URL}{path}", timeout=20)
+    response.raise_for_status()
+    return response.json()
+
+
+def list_ollama_models() -> list[str]:
+    names: set[str] = set()
+    for path in ("/api/tags", "/api/ps", "/v1/models"):
+        try:
+            payload = ollama_get(path)
+        except requests.RequestException:
+            continue
+
+        if path == "/v1/models":
+            for item in payload.get("data", []):
+                if isinstance(item, dict):
+                    model_id = item.get("id")
+                    if isinstance(model_id, str) and model_id.strip():
+                        names.add(model_id.strip())
+            continue
+
+        models = payload.get("models", [])
+        if isinstance(models, list):
+            for item in models:
+                if isinstance(item, dict):
+                    name = item.get("name") or item.get("model")
+                    if isinstance(name, str) and name.strip():
+                        names.add(name.strip())
+
+    return sorted(names)
+
+
+def build_chat_messages(character: dict[str, Any], memory_hits: list[str], history: list[dict[str, str]], message: str) -> list[dict[str, str]]:
+    personality = character.get("personality", "")
+    biography = character.get("biography", "")
+    appearance = character.get("appearance_description", "")
+    relationship_history = character.get("relationship_history", "")
+    interests = ", ".join(character.get("interests", []))
+    speech_style = character.get("speech_style", "")
+    boundaries = "\n".join(f"- {item}" for item in character.get("boundaries", []))
+    memory_block = "\n".join(f"- {snippet}" for snippet in memory_hits) if memory_hits else "- None yet"
+
+    system_prompt = (
+        "You are roleplaying as an adult fictional companion character.\n"
+        f"Name: {character.get('name', 'Companion')}\n"
+        f"Age: {character.get('age', 'unknown')}\n"
+        f"Personality: {personality}\n"
+        f"Biography: {biography}\n"
+        f"Appearance: {appearance}\n"
+        f"Relationship history: {relationship_history}\n"
+        f"Interests: {interests}\n"
+        f"Speech style: {speech_style}\n"
+        "Boundaries (must never be violated):\n"
+        f"{boundaries}\n"
+        "Relevant long-term memory:\n"
+        f"{memory_block}\n"
+        "Safety rules: Never generate or support minors, age ambiguity, non-consent, exploitation, or unauthorized real-person content."
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(history[-10:])
+    messages.append({"role": "user", "content": message})
+    return messages
+
+
+def stream_ollama_chat(model: str, messages: list[dict[str, str]]):
+    payload = {"model": model, "messages": messages, "stream": True}
+    with requests.post(
+        f"{OLLAMA_URL}/api/chat",
+        json=payload,
+        stream=True,
+        timeout=(15, CHAT_TIMEOUT_SECONDS),
+    ) as response:
+        if response.status_code >= 400:
+            detail = response.text.strip() or response.reason or "ollama request failed"
+            yield f"[ERROR] {detail}"
+            return
+
+        yield "\n"
+        for line in response.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            if line.strip() == "[DONE]":
+                continue
+            try:
+                import json as _json
+                data = _json.loads(line)
+            except Exception:
+                continue
+            message = data.get("message")
+            if isinstance(message, dict):
+                content = message.get("content")
+                if isinstance(content, str) and content:
+                    yield content
 
 
 
@@ -223,12 +322,11 @@ def index():
     recent_images = list_recent_generated_images()
 
     try:
-        model_payload = api_get("/models/ollama")
-        available_models = [m for m in model_payload.get("models", []) if isinstance(m, str)]
+        available_models = list_ollama_models()
         if not selected_model:
-            selected_model = model_payload.get("default")
+            selected_model = available_models[0] if available_models else DEFAULT_CHAT_MODEL
     except requests.RequestException:
-        model_warning = "Kunde inte hämta modellistan från backend. Visar lokal fallback-lista."
+        model_warning = "Kunde inte hämta modellistan direkt från Ollama. Visar lokal fallback-lista."
 
     fallback_models = [DEFAULT_CHAT_MODEL, FALLBACK_CHAT_MODEL, *EXTRA_CHAT_MODELS]
     if selected_model:
@@ -388,29 +486,29 @@ def chat_stream_proxy(character_id: str):
 
     history_key = f"chat::{character_id}"
     history = session.get(history_key, [])
-    payload = {
-        "user_id": DEFAULT_USER_ID,
-        "character_id": character_id,
-        "message": message,
-        "history": history,
-        "model": model,
-    }
+
+    try:
+        character = api_get(f"/characters/{character_id}")
+    except requests.RequestException as exc:
+        return Response(f"[ERROR] Could not load companion profile: {exc}", status=502, mimetype="text/plain")
+
+    memory_hits: list[str] = []
+    messages = build_chat_messages(character, memory_hits, history, message)
 
     def generate():
         try:
-            with requests.post(
-                f"{FASTAPI_URL}/chat/stream",
-                json=payload,
-                stream=True,
-                timeout=(15, None),
-            ) as resp:
-                if resp.status_code >= 400:
-                    text = resp.text.strip() or "stream request failed"
-                    yield f"[ERROR] {text}"
+            chunks: list[str] = []
+            for chunk in stream_ollama_chat(model, messages):
+                if chunk.startswith("[ERROR]"):
+                    yield chunk
                     return
-                for chunk in resp.iter_content(chunk_size=1024, decode_unicode=True):
-                    if chunk:
-                        yield chunk
+                chunks.append(chunk)
+                yield chunk
+            assistant_text = "".join(chunks).strip()
+            if assistant_text:
+                history.append({"role": "user", "content": message})
+                history.append({"role": "assistant", "content": assistant_text})
+                session[history_key] = history[-30:]
         except requests.RequestException as exc:
             yield f"[ERROR] {exc}"
 
