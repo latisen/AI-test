@@ -520,19 +520,14 @@ def chat_stream_proxy(character_id: str):
 
     def generate():
         try:
-            chunks: list[str] = []
             for chunk in stream_lmstudio_chat(model, messages):
                 if chunk.startswith("[ERROR]"):
                     yield chunk
                     return
-                chunks.append(chunk)
                 yield chunk
-            assistant_text = "".join(chunks).strip()
-            if assistant_text:
-                history.append({"role": "user", "content": message})
-                history.append({"role": "assistant", "content": assistant_text})
-                session[history_key] = history[-30:]
         except requests.RequestException as exc:
+            yield f"[ERROR] {exc}"
+        except Exception as exc:
             yield f"[ERROR] {exc}"
 
     return Response(generate(), mimetype="text/plain; charset=utf-8")
