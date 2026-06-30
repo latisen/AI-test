@@ -107,7 +107,11 @@
       if (fullText.startsWith('[ERROR]')) {
         assistantP.textContent = fullText;
       } else {
-        await persistChat(characterId, message, fullText.trim());
+        try {
+          await persistChat(characterId, message, fullText.trim());
+        } catch (err) {
+          console.error('Could not persist chat history', err);
+        }
       }
     } catch (err) {
       assistantP.textContent = `Fel: ${err}`;
