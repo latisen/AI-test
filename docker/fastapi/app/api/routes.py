@@ -21,6 +21,7 @@ from app.modules.prompt_builder import build_system_prompt, compose_image_prompt
 from app.modules.safety import assert_safe_text
 
 router = APIRouter()
+BUILD_MARKER = "2026-06-30-chat-hardening-v3"
 
 
 class NoopMemoryManager:
@@ -69,6 +70,11 @@ def get_comfyui_client() -> ComfyUIClient:
 @router.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.get("/debug/build")
+async def debug_build() -> dict[str, str]:
+    return {"build": BUILD_MARKER}
 
 
 @router.get("/characters")

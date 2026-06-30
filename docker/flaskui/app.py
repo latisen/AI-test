@@ -30,13 +30,17 @@ def api_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     try:
         response.raise_for_status()
     except requests.HTTPError as exc:
-        detail = response.text
+        detail = response.text or "(empty response body)"
         try:
             parsed = response.json()
             detail = parsed.get("detail", detail)
+            if isinstance(parsed, dict) and parsed.get("traceback"):
+                detail = f"{detail} | traceback: {parsed.get('traceback')}"
         except ValueError:
             pass
-        raise requests.HTTPError(f"{exc} :: {detail}") from exc
+        raise requests.HTTPError(
+            f"{exc} :: status={response.status_code} content-type={response.headers.get('content-type', '')} body={detail}"
+        ) from exc
     return response.json()
 
 
