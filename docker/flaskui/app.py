@@ -18,6 +18,7 @@ DEFAULT_USER_ID = os.getenv("UI_USER_ID", "local-user")
 DEFAULT_CHAT_MODEL = os.getenv("OLLAMA_DEFAULT_TEXT_MODEL", "qwen2.5:14b")
 FALLBACK_CHAT_MODEL = os.getenv("OLLAMA_FALLBACK_TEXT_MODEL", "llama3.1:8b")
 EXTRA_CHAT_MODELS = [m.strip() for m in os.getenv("OLLAMA_EXTRA_MODELS", "").split(",") if m.strip()]
+CHAT_TIMEOUT_SECONDS = int(os.getenv("CHAT_TIMEOUT_SECONDS", "240"))
 
 
 
@@ -28,8 +29,8 @@ def api_get(path: str) -> dict[str, Any]:
 
 
 
-def api_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
-    response = requests.post(f"{FASTAPI_URL}{path}", json=payload, timeout=30)
+def api_post(path: str, payload: dict[str, Any], timeout_seconds: int = 30) -> dict[str, Any]:
+    response = requests.post(f"{FASTAPI_URL}{path}", json=payload, timeout=timeout_seconds)
     try:
         response.raise_for_status()
     except requests.HTTPError as exc:
@@ -297,7 +298,8 @@ def chat(character_id: str):
         session["chat_model"] = selected_model
 
     try:
-        response = api_post("/chat", payload)
+        # First response from larger models can take a while.
+        response = api_post("/chat", payload, timeout_seconds=CHAT_TIMEOUT_SECONDS)
         assistant_text = response.get("text") or response.get("image_url") or "No response"
 
         history.append({"role": "user", "content": message})
@@ -328,7 +330,7 @@ def generate_image(character_id: str):
             "workflow": _clean(request.form.get("workflow")) or "sdxl_character.json",
         }
 
-        result = api_post("/images", payload)
+        result = api_post("/images", payload, timeout_seconds=90)
         session[f"image::{character_id}"] = result
         flash(
             f"Bildjobb köat. prompt_id: {result.get('prompt_id', 'n/a')}",
